@@ -1,0 +1,59 @@
+import re
+
+ERR1 = "The signal handling facilities of <csignal> shall not be used"
+
+# The ID for the check
+def ids():
+    return ('M18-7-1', 'MISRA08_18-7-1', 'MISRA04_20.8', 'CPP_L002')
+
+# The short name of the check
+def name(id):
+    return {
+        'M18-7-1': """\
+Published Standards/AUTOSAR/The signal handling facilities of &lt;csignal&gt;
+shall not be used""",
+        'MISRA08_18-7-1': """\
+Published Standards/MISRA-C++ 2008/18-7-1 The signal handling facilities of
+&lt;csignal&gt; shall not be used""",
+        'MISRA04_20.8': """\
+Published Standards/MISRA-C 2004/20.8 The signal handling facilities of
+&lt;signal.h&gt; shall not be used""",
+        'CPP_L002': """\
+All Checks/Language Specific/C and C++/Libraries/The signal handling facilities
+of &lt;csignal&gt; shall not be used"""
+
+    }[id]
+
+# The long description of the check
+def detailed_description():
+    return """\
+<p><b>Rationale</b></p>
+<p>Signal handling contains implementation-defined and undefined behaviour.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+#include &lt;csignal&gt;
+void my_handler ( int32_t );
+void f1 ( )
+{
+signal ( 1, my_handler ); // Non-compliant
+}
+</pre>
+"""
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    for ref in file.filerefs('Include', 'Unresolved Header File'):
+        if re.search('csignal|signal\.h', ref.ent().name()):
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)

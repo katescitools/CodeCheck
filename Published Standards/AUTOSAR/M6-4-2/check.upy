@@ -1,0 +1,140 @@
+import re
+
+DEF_NAME = "All if and else if constructs shall be terminated with an else clause"
+
+# The ID for the check
+def ids():
+  return ("M6-4-2", 'CPP_C047')
+
+# The short name of the check
+def name(id):
+    return {
+      "M6-4-2": "Published Standards/AUTOSAR/All if and else if constructs shall be terminated with an else clause",
+      "CPP_C047": "All Checks/Language Specific/C and C++/Control Flow/All if and else if constructs shall be terminated with an else clause",
+    }[id]
+
+# The long description of the check
+def detailed_description():
+  return """\
+<p><b>Rationale</b></p>
+<p>When an if statement is followed by one or more else if statements then the final else if shall be followed by an else statement. In the case of a simple if statement the else statement need not be included.</p>
+<p>The final else statement, which should either take appropriate action or contain a suitable comment as to why no action is taken, is defensive programming.</p>
+<p><b>Example</b></p>
+<p>For example this code is a simple if statement:</p>
+<pre style="margin-top:0;padding-top:0;">
+  if ( x &lt; 0 )
+  {
+    log_error( 3 );
+    x = 0;
+  }
+  // else not needed
+</pre>
+<p>Whereas the following code demonstrates an if, else if construct</p>
+<pre style="margin-top:0;padding-top:0;">
+  if ( x &lt; 0 )
+  {
+    log_error ( 3 );
+    x = 0;
+  }
+  else if ( y &lt; 0 )
+  {
+    x = 3;
+  }
+  else // this else clause is required, even if the
+  {    // developer expects this will never be reached
+    // No change in value of x
+  }
+</pre>"""
+
+# Tests the type of file
+def test_entity(file):
+  return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for
+# project-level checks
+def test_global():
+  return False
+
+def test_language(language):
+  return language == 'C++'
+
+# traverse the whole statement, one-liner if-statement
+def pass_thru_statement(lex):
+  while lex and lex.text() != ";":
+    lex = lex.next(ignore_whitespace=True,ignore_comments=True)
+  return lex
+
+# traverse the whole condition if-statement block
+def pass_thru_whole_block(lex, file, check):
+  while lex:
+    if lex.token() == "Punctuation" and lex.text() == "}":
+      return lex
+    elif lex.token() == "Punctuation" and lex.text() == "{":
+      lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+      lex = pass_thru_whole_block(lex, file, check)
+    elif lex.text() == "if" and lex.token() == "Keyword":
+      lex = if_validator(lex, file, check)
+    else:
+      lex = lex.next(ignore_whitespace=True,ignore_comments=True)
+  return lex
+
+# traverse the whole condition block
+def pass_thru_condition_block(lex):
+  while lex and not (lex.text() == "(" and lex.token() == "Punctuation"):
+    lex = lex.next(ignore_whitespace=True,ignore_comments=True)
+  lex = lex.next(ignore_whitespace=True,ignore_comments=True)
+  open = 1
+  while open != 0:
+    if lex.token() == "Punctuation" and lex.text() == "(":
+      open += 1
+    elif lex.token() == "Punctuation" and lex.text() == ")":
+      open -= 1
+    lex = lex.next(ignore_whitespace=True,ignore_comments=True)
+  return lex
+
+# if-statement main validation process
+def if_validator(lex, file, check):
+  proceed = True
+  one_liner_flag = False
+  else_required = False
+  row, col = lex.line_begin(), lex.column_begin()
+
+  while proceed:
+    # block that checks if if-statement is a one liner or not
+    lex = pass_thru_condition_block(lex)
+    if not (lex.text() == "{" and lex.token() == "Punctuation"):
+      one_liner_flag = True
+      lex = pass_thru_statement(lex)
+    else:
+      lex = pass_thru_whole_block(lex, file, check)
+
+    else_lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+    if else_lex.text() == "else" and else_lex.token() == "Keyword":
+      else_required = False
+      lex = else_lex
+      if_lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+      if if_lex.text() == "if" and if_lex.token() == "Keyword":
+        lex = if_lex
+        else_required = True
+      else:
+        proceed = False
+    else:
+      proceed = False
+
+  if else_required:
+    check.violation(None, file, row, col, DEF_NAME)
+
+  return lex
+
+
+def check(check, file):
+  lexer = file.lexer(True, 8, False, False)
+  lex = lexer.first()
+
+  while lex:
+    if lex.text() == "if" and lex.token() == "Keyword":
+      lex = if_validator(lex, file, check)
+      lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+    else:
+      lex = lex.next(ignore_whitespace=True, ignore_comments=True)

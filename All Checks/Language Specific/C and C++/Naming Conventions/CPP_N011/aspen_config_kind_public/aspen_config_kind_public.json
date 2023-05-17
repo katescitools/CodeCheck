@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "VariableRun": false,
+                "PublicRun": true,
+                "PublicconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Public",
+    "parents": [
+    ]
+}

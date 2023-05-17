@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N004",
+            "options": {
+                "FunctioncharSet": "Letters Only"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Character Set - Letters Only",
+    "parents": [
+    ]
+}

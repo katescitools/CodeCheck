@@ -1,0 +1,206 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 10-13-21
+
+
+import re
+
+
+ERR1 = '%1\'s dynamic type used in the call to typeid'
+ERR2 = '%1 makes a call to a virtual function using its dynamic type'
+ERR3 = '%1\'s dynamic type used in the call to dynamic_cast'
+ERR4 = '%1 makes a call to a pure virtual function'
+
+
+def ids():
+    return ('M12-1-1', 'MISRA08_12-1-1', 'CPP_C011')
+
+
+def name(id):
+    return {
+        'M12-1-1': 'Published Standards/AUTOSAR/An object\'s dynamic type shall not be used from the body of its constructor or destructor',
+        'MISRA08_12-1-1': 'Published Standards/MISRA-C++ 2008/12-1-1 An object\'s dynamic type shall not be used from the body of its constructor or destructor',
+        'CPP_C011': 'All Checks/Language Specific/C and C++/Constructors/An object\'s dynamic type shall not be used from the body of its constructor or destructor',
+    }[id]
+
+
+def description():
+    return 'An object\'s dynamic type shall not be used from the body of its constructor or destructor.'
+
+
+def detailed_description():
+    return '''\
+
+<p><b>Rationale</b><br>
+During construction and destruction of an object, its final type may be different to that of the
+completely constructed object. The result of using an object's dynamic type in a constructor or
+destructor may not be consistent with developer expectations.
+<p>
+
+<p>
+The dynamic type of an object is used in the following constructs:
+</p>
+
+<p>
+• <i>typeid</i> on a class with a virtual function or a virtual function in a base class.
+</p>
+
+<p>
+• <i>dynamic_cast</i>
+</p>
+
+<p>
+• A virtual call to a virtual function.
+</p>
+
+<p>
+This rule also prohibits a call being made to a <i>pure virtual</i> function from within a constructor or
+destructor. Such calls lead to <i>undefined behaviour</i>.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+
+class B1
+{
+
+public:
+    B1 ( )
+    {
+        typeid ( B1 );                // Compliant, B1 not polymorphic
+    }
+
+};
+
+class B2
+{
+
+public:
+    virtual ~B2 ( );
+    virtual void foo ( );
+    B2 ( )
+    {
+        typeid ( B2 );                // Non-compliant
+        B2::foo ( );                  // Compliant – not a virtual call
+        foo ( );                      // Non-compliant
+        dynamic_cast< B2* > ( this ); // Non-compliant
+    }
+
+};
+
+};
+
+</pre>
+
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def check(check, file):
+    # Pull all the classes that are defined in this file, return if non
+    classesDefined = file.filerefs('Define', 'Class', False)
+    if not classesDefined:
+        return
+
+    # Loop through all defined classes
+    for classRef in classesDefined:
+
+        # Pull all the methods defined in the class, move on if none
+        methodsDefined = classRef.ent().refs('Define', 'Member Function')
+        if not methodsDefined:
+            continue
+
+        # Check to see if this class has virtual methods
+        hasVirtual = findVirtual(classRef)
+
+        # Loop through each mothod
+        for method in methodsDefined:
+
+            # Check to see if we are looking at the constructor or destructor
+            if (method.ent().longname() == classRef.ent().name() + '::' + classRef.ent().name() or method.ent().longname() == classRef.ent().name() + '::~' + classRef.ent().name()):
+
+                # Pull any call to virtual functions and any name references
+                virtualCalls = method.ent().refs('Call Virtual')
+                nameCalls = method.ent().refs('Name')
+
+                # Loop through each virtual calls, if they have a corresponding name reference than that call is ok, throw an error otherwise
+                for virtual in virtualCalls:
+
+                    # Check the text arount the virtual call to ensure we are not using another object
+                    tempLexeme = file.lexer().lexeme(virtual.line(), virtual.column())
+                    # Calling a virtual function via a pointer or object
+                    if not tempLexeme:
+                        continue
+                    prevUseful = tempLexeme.previous(ignore_whitespace=True, ignore_comments=True)
+                    if not prevUseful:
+                        continue
+                    if prevUseful.text() == '->' or prevUseful.text() == '.':
+                        continue
+                    if tempLexeme.token() == 'Keyword':
+                        continue
+
+                    # Test if this is a call to a pure virtual function, if so, throw error and move on
+                    if re.search('\\bPure\\b', virtual.ent().kindname()):
+                        check.violation(virtual.ent(), virtual.file(), virtual.line(), virtual.column(), ERR4, classRef.ent().name())
+                        continue
+
+                    # If we see a corresponding name reference for this virtual call reference, we can move on
+                    nextMethod = False
+                    for name in nameCalls:
+                        if name.line() == virtual.line():
+                            nextMethod = True
+                            break
+
+                    # If we reach this point, then we must have an error
+                    if not nextMethod:
+                        check.violation(virtual.ent(), virtual.file(), virtual.line(), virtual.column(), ERR2, classRef.ent().name())
+
+                # Pull the end line number and spin up a lexeme
+                end = method.ent().ref('End').line()
+                lexeme = file.lexer().lexeme(method.line(), method.column())
+
+                # While we are still inside the constructor or destructor
+                while lexeme and lexeme.line_begin() < end:
+
+                    # If we see a call to typeid, throw an error if the class is the arguement and this class has a virtual method
+                    if lexeme.text() == 'typeid':
+
+                        nextNext =  lexeme.next(ignore_whitespace=True, ignore_comments=True).next(ignore_whitespace=True, ignore_comments=True)
+                        if nextNext.text() == classRef.ent().name() and hasVirtual:
+                            check.violation(classRef.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR1, classRef.ent().name())
+
+                    # If we see a call to dynamic_cast, throw and error if the class is the arguement
+                    elif lexeme.text() == 'dynamic_cast':
+
+                        nextNext =  lexeme.next(ignore_whitespace=True, ignore_comments=True).next(ignore_whitespace=True, ignore_comments=True)
+                        if nextNext.text() == classRef.ent().name():
+                            check.violation(classRef.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR3, classRef.ent().name())
+
+                    lexeme = lexeme.next(ignore_whitespace=True, ignore_comments=True)
+
+# This function is used to find a virtual method, or to see if any ancestor has a virtual method
+def findVirtual(classRef):
+    # Test if this class has a virtual method
+    if classRef.ent().refs('Define, Declare', 'Member Function Virtual'):
+        return True
+
+    # Find parent classes if they exist, test them
+    parentsDefined = classRef.ent().refs('Base')
+    for parent in parentsDefined:
+
+        # Recursively test each parent and set the flag if the parent has virtual, ignore otherwise
+        if findVirtual(parent):
+            return True
+
+    return False

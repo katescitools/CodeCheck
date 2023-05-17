@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_C026",
+            "options": {
+                "break": true,
+                "goto": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "break",
+    "parents": [
+    ]
+}
+

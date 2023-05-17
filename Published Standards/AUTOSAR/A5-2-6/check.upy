@@ -1,0 +1,147 @@
+ERR1 = 'The operands are not parenthesized'
+
+
+# The ID for the check
+def ids():
+    return ('A5-2-6', 'CPP_E042')
+
+
+# The short name of the check
+def name(id):
+    return {
+        'A5-2-6': 'Published Standards/AUTOSAR/The operands of a logical && or || shall be parenthesized if the operands contain binary operators',
+        'CPP_E042': 'All Checks/Language Specific/C and C++/Expressions/The operands of a logical && or || shall be parenthesized if the operands contain binary operators',
+    }[id]
+
+
+# The short description of the check
+def description():
+    return 'The operands of a logical && or || shall be parenthesized if the operands contain binary operators.'
+
+
+# The long description of the check
+def detailed_description():
+    return """
+<p><b>Rule</b></p>
+<p>The operands of a logical && or || shall be parenthesized if the operands
+contain binary operators.</p>
+<p><b>Rationale</b></p>
+<p>Parentheses are required to add clarity in logical expressions making code easier to
+review versus code based only C++ operator precedence rules.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 // $Id: A5-2-6.cpp$
+2
+3 #include &lt;cstdint&gt;
+4
+5 void Fn(std::int32_t value) noexcept
+6 {
+7 if (value &gt; 0 && value &lt; 3) // Non-compliant
+8 {
+9 // do some work
+10 }
+11 else if ((value &gt; 1) && (value &lt; 2)) // Compliant
+12 {
+13 // do some work
+14 }
+15 else
+16 {
+17 // do some work
+18 }
+19
+20 return;
+21 }
+</pre>
+<p><b>See also</b></p>
+<p>• MISRA C++ 2008 [7]: M5-2-1: Each operand of a logical && or || shall be a postfix
+expression.</p>
+<p>• JSF December 2005 [8]: AV Rule 158: The operands of a logical && or \\ shall
+be parenthesized if the operands contain binary operators.</p>
+<p>• C++ Core Guidelines [11]: ES.41: If in doubt about operator precedence,
+parenthesize</p>
+"""
+
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    def check_violation(_lex):
+        check.violation(None, file, _lex.line_begin(),
+                        _lex.column_begin(), ERR1)
+
+    lexer = file.lexer(True, 8, False, False)
+
+    if not lexer:
+        return
+
+    lex = lexer.first()
+
+    while lex:
+        if lex.text() in {"&&", "||"} and lex.token() == "Operator":
+            has_op, is_parenthesized = rho(lex)
+            if has_op and not is_parenthesized:
+                check_violation(lex)
+                lex = lex.next(ignore_whitespace=True,
+                               ignore_comments=True)
+                continue
+
+            has_op, is_parenthesized = lho(lex)
+            if has_op and not is_parenthesized:
+                check_violation(lex)
+
+        lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+
+
+def rho(_lex):
+    has_op, is_parenthesized = False, False
+
+    _lex = _lex.next(ignore_whitespace=True, ignore_comments=True)
+    stop_line = _lex.line_begin()
+
+    if _lex.text() == "(" and _lex.token() == "Punctuation":
+        is_parenthesized = True
+
+    while _lex.text() != ")" and _lex.line_begin() == stop_line:
+        if _lex.token() == "Operator" and _lex.text() == "*":
+            next_lex = _lex.next()
+            if next_lex.ent() and "*" not in next_lex.ent().type():
+                has_op = True
+        elif _lex.token() == "Operator":
+            has_op = True
+
+        _lex = _lex.next(ignore_whitespace=True, ignore_comments=True)
+
+    return has_op, is_parenthesized
+
+
+def lho(_lex):
+    has_op, is_parenthesized = False, False
+
+    _lex = _lex.previous(ignore_whitespace=True, ignore_comments=True)
+    stop_line = _lex.line_begin()
+
+    if _lex.text() == ")" and _lex.token() == "Punctuation":
+        is_parenthesized = True
+
+    while _lex and _lex.text() != "(" and _lex.line_begin() == stop_line:
+        if _lex.token() == "Operator" and _lex.text() == "*":
+            next_lex = _lex.next()
+            if next_lex.ent() and "*" not in next_lex.ent().type():
+                has_op = True
+        elif _lex.token() == "Operator":
+            has_op = True
+
+        _lex = _lex.previous(ignore_whitespace=True, ignore_comments=True)
+
+    return has_op, is_parenthesized

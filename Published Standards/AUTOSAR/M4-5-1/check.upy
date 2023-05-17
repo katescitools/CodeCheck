@@ -1,0 +1,98 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 1-4-21
+
+
+import re
+
+
+ERR1 = 'Boolean operator used incorrectly in %1'
+
+
+def ids():
+    return ('M4-5-1', 'MISRA08_4-5-1', 'CPP_E015')
+
+def name(id):
+    return {
+        'M4-5-1': 'Published Standards/AUTOSAR/Expressions with type bool shall not be used as operands to built-in operators other than the assignment operator =, the logical operators &&, ||, !, the equality operators == and !=, the unary & operator, and the conditional operator',
+        'MISRA08_4-5-1': 'Published Standards/MISRA-C++ 2008/4-5-1 Expressions with type bool shall not be used as operands to built-in operators other than the assignment operator =, the logical operators &&, ||, !, the equality operators == and !=, the unary & operator, and the conditional operator',
+        'CPP_E015': 'All Checks/Language Specific/C and C++/Expressions/Expressions with type bool shall not be used as operands to built-in operators other than the assignment operator =, the logical operators &&, ||, !, the equality operators == and !=, the unary & operator, and the conditional operator',
+    }[id]
+
+
+def description():
+    return 'Expressions with type bool shall not be used as operands to built-in operators other than the assignment operator =, the logical operators &&, ||, !, the equality operators == and !=, the unary & operator, and the conditional operator.'
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b><br>
+The use of <i>bool</i> operands with other operators is unlikely to be meaningful (or intended). This rule allows the detection of such uses, which often occur because the logical operators (&&, || and !) can be easily confused with the bitwise operators (&, | and ~).</p>
+<br>
+
+<b>Example</b><pre style="margin-top:0;padding-top:0;">
+bool b1 = true;
+bool b2 = false;
+int8_t s8a;
+if ( b1 & b2 )     // Non-compliant
+if ( b1 &lt; b2 )     // Non-compliant
+if ( ~b1 )         // Non-compliant
+if ( b1 ^ b2 )     // Non-compliant
+if ( b1 == false ) // Compliant
+if ( b1 == b2 )    // Compliant
+if ( b1 != b2 )    // Compliant
+if ( b1 && b2 )    // Compliant
+if ( !b1 )         // Compliant
+s8a = b1 ? 3 : 7;  // Compliant
+</pre>
+
+<br>
+<p><b>Developer's Note</b><br>
+This check only looks at boolean type objects. Currently, Understand's Code Check feature cannot evaluate an expression statically; therefore, any expression or function that returns a boolean will not be tested with this check.</p>
+<br>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    lexer = file.lexer()
+
+    # Pull a list of all boolean refs
+    booleans = file.filerefs('Use')
+  
+    # Loop through all use references and check if they are booleans
+    for boolean in booleans:
+        ent = boolean.ent()
+        if ent.type() != 'bool':
+            continue
+
+        # Pull the previous symbol and the next symbol for testing
+        lexeme = lexer.lexeme(boolean.line(), boolean.column())
+        prevLexeme = lexeme.previous(True, True)
+        nextLexeme = lexeme.next(True, True)
+        prevToken = prevLexeme.text()
+        nextToken = nextLexeme.text()
+
+        # Initialize flag and check for bad symbols
+        flag = False
+        bad = {'+', '-', '*', '/', '%', '++', '--', '>', '<', '>=', '|', '^', '~', '<<', '>>', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=', '&=', '^=', '|='}
+        if prevLexeme.previous(True, True) and prevLexeme.previous(True, True).token() == 'Identifier':
+            bad.add('&')
+
+        if prevToken in bad or nextToken in bad:
+            flag = True
+
+        # Throw and error if we found a bad token
+        if flag:
+            check.violation(ent, file, boolean.line(), boolean.column(), ERR1, ent.name())

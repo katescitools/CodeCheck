@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_H021",
+            "options": {
+                "oneViolation": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Many Violations per File",
+    "parents": [
+    ]
+}
+

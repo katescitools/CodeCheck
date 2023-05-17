@@ -1,0 +1,60 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 11-03-2022
+def ids():
+    return ('M16-1-2')
+
+def name(id):
+    return {
+        'M16-1-2': 'Published Standards/AUTOSAR/All #else, #elif and #endif preprocessor directives shall reside in the same file as the #if or #ifdef directive to which they are related',
+    }[id]
+
+def detailed_description():
+    return """\
+<p><b>This check is automatically run</b></p>
+<p>This check is always run during the strict analysis, any violations will be reported as analysis errors.</p>
+<p><b>Rationale</b></p>
+<p>When the inclusion and exclusion of blocks of statements is controlled by a
+series of preprocessor directives, confusion can arise if all of the relevant
+directives do not occur within one file. This rule requires that all
+preprocessor directives in a sequence of the form #if / #ifdef ... #elif ...
+#else ... #endif shall reside in the same file. Observance of this rule
+preserves good code structure and avoids maintenance problems.</p>
+<p>Notice that this does not preclude the possibility that such directives may
+exist within included files provided that all directives that relate to the
+same sequence are located in one file.</p>
+<p><b>Example</b></p>
+<pre>
+// file.cpp
+#define A
+...
+#ifdef A
+...
+#include "file1.hpp"
+#
+#endif
+...
+#if 1
+#include "file2.hpp"
+...
+// file1.hpp
+#if 1
+...
+#endif // Compliant
+// file2.hpp
+...
+#endif // Non-compliant
+</pre>
+"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def noop_always():
+    return True
+
+def check(check, file):
+    pass

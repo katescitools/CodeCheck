@@ -1,0 +1,96 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 2-20-23
+
+
+import re
+
+
+ERR1 = 'Standard header file tgmath.h used'
+
+
+def ids():
+    return ('MISRA12_21.11', 'CPP_H020')
+
+
+def name(id):
+    return {
+        'MISRA12_21.11': '''Published Standards/MISRA C 2012/\
+21.11 The standard header file &lt;tgmath.h&gt; shall not be used''',
+        'CPP_H020': '''All Checks/Language Specific/C and C++/Headers/\
+The standard header file &lt;tgmath.h&gt; shall not be used''',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Amplification</b></p>
+
+<p>
+None of the facilities that are specified as being provided by &lt;tgmath.h&gt;
+shall be used.
+</p>
+
+<p><b>Rationale</b></p>
+
+<p>
+Using the facilities of &lt;tgmath.h&gt; may result in undefined behaviour.
+</p>
+
+<b>Example</b></p>
+
+<pre>
+#include &lt;tgmath.h&gt; /* Non-compliant */
+
+float f1, f2;
+
+void f ( void )
+{
+  f1 = sqrt ( f2 );   /* Generic sqrt used */
+}
+
+#include &lt;math.h&gt;
+
+float f1, f2;
+
+void f ( void )
+{
+  f1 = sqrtf ( f2 ); /* Compliant - float version of sqrt used */
+}
+</pre>
+'''
+
+
+def report_info(id):
+    return {
+        'MISRA12_21.11': {
+            'Category': 'Required',
+        },
+    }[id]
+
+
+def test_entity(file):
+    return file.kind().check('Header File, Code File')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def define_options(check):
+    check.options().checkbox('oneViolation', 'Limit one violation per file', True)
+
+
+def check(check, file):
+    global oneViolation
+    if 'oneViolation' not in globals():
+        oneViolation = check.options().lookup('oneViolation')
+
+    for ref in file.filerefs('Include', 'File', oneViolation):
+        ent = ref.ent()
+        if ent.name() == 'tgmath.h':
+            check.violation(ent, file, ref.line(), ref.column(), ERR1)

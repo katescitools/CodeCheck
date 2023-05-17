@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "VariableRun": false,
+                "PrivateRun": true,
+                "PrivateconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Private",
+    "parents": [
+    ]
+}

@@ -1,0 +1,228 @@
+# This script is designed to run with Understand - CodeCheck
+# Every defined function shall be called at least once
+# Written by Jason Quinn
+# 2/2/21
+import re
+
+ERR1 = 'Violation: %1 defined but not called.'
+IGNORE1 = 'Ignore Virtual Functions (They can cause false positives since static analysis tools cannot track dynamic polymorphism)'
+
+# The ID for the check
+def ids():
+    return ('RECOMMENDED_13', 'MISRA08_0-1-10', 'CPP_F003', 'M0-1-10')
+
+# The short name of the check
+def name(id):
+    return {
+            'RECOMMENDED_13': 'SciTools\' Recommended Checks/Unused Functions',
+            'MISRA08_0-1-10': 'Published Standards/MISRA-C++ 2008/0-1-10 All defined functions called',
+            'CPP_F003': 'All Checks/Language Specific/C and C++/Functions/Unused Functions',
+			'M0-1-10': 'Published Standards/AUTOSAR/Every defined function shall be called at least once.',
+            }[id]
+
+# The short description of the check
+def description(id):
+    return {
+            'RECOMMENDED_13': 'Every defined function shall be called at least once.',
+            'MISRA08_0-1-10': '0-1-10 (Required) Every defined function shall be called at least once.',
+            'CPP_F003': 'Every defined function shall be called at least once.',
+            'M0-1-10': 'Every defined function shall be called at least once.',
+            }[id]
+
+# The long description of the check
+def detailed_description(id):
+    return {
+            'RECOMMENDED_13': """\
+<p><b>Rationale</b></p>
+<p>Functions or procedures that are not called may be symptomatic of a serious
+problem, such as missing paths. Note that unused prototypes and main are not
+violations of this rule. </p>""",
+            'MISRA08_0-1-10': """\
+<p><b>Rationale</b></p>
+<p>Functions or procedures that are not called may be symptomatic of a serious
+problem, such as missing paths.</p>
+<p><b>Exception</b></p>
+<p>Note that unused prototypes and main are not violations of this rule.
+</p>""",
+            'CPP_F003': """\
+<p><b>Rationale</b></p>
+<p>Functions or procedures that are not called may be symptomatic of a serious
+problem, such as missing paths. Note that unused prototypes and main are not
+violations of this rule. </p>""",
+			'M0-1-10': """\
+<p><b>Rationale</b></p>
+<p>Functions or procedures that are not called may be symptomatic of a serious problem, such as
+missing paths.</p>
+<p>Note that an unused prototype is not a violation of this rule.</p>
+<p>See Section 3.5 for associated library issues.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+void f1 ( )
+{
+}
+void f2 ( ) // Non-compliant
+{
+}
+void f3 ( ); // Compliant prototype
+int32_t main ( )
+{
+ f1 ( );
+ return ( 0 );
+}
+</pre>
+<p>
+Note: This rule enforces developers to statically and explicitly use every function in
+the source code. A function does not necessarily need to be called at run-time. Rule
+M0-1-1 detects all unreachable code occurrences.
+</p>""",
+            }[id]
+    return 
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def define_options(check):
+    check.option().checkbox('ignoreVirtual', IGNORE1, True);
+    check.option().checkbox('exclusions', 'Exclude standard library functions', False);
+
+
+def check(check, file):
+    standardLibraries = {}
+
+    if check.option().lookup('exclusions'):
+        standardLibraries = {
+            'cstdlib.h': True,
+            'csignal.h': True,
+            'csetjmp.h': True,
+            'cstdarg.h': True,
+            'typeinfo.h': True,
+            'typeindex.h': True,
+            'type_traits.h': True,
+            'bitset.h': True,
+            'functional.h': True,
+            'utility.h': True,
+            'ctime.h': True,
+            'chrono.h': True,
+            'cstddef.h': True,
+            'initializer_list.h': True,
+            'tuple.h': True,
+            'any.h': True,
+            'optional.h': True,
+            'variant.h': True,
+            'new.h': True,
+            'memory.h': True,
+            'scoped_allocator.h': True,
+            'memory_resource.h': True,
+            'climits.h': True,
+            'cfloat.h': True,
+            'cstdint.h': True,
+            'cinttypes.h': True,
+            'limits.h': True,
+            'exception.h': True,
+            'stdexcept.h': True,
+            'cassert.h': True,
+            'system_error.h': True,
+            'cerrno.h': True,
+            'cctype.h': True,
+            'cwctype.h': True,
+            'cstring.h': True,
+            'cwchar.h': True,
+            'cuchar.h': True,
+            'string.h': True,
+            'string_view.h': True,
+            'array.h': True,
+            'vector.h': True,
+            'deque.h': True,
+            'list.h': True,
+            'forward_list.h': True,
+            'set.h': True,
+            'map.h': True,
+            'unordered_set.h': True,
+            'unordered_map.h': True,
+            'stack.h': True,
+            'queue.h': True,
+            'algorithm.h': True,
+            'execution.h': True,
+            'iterator.h': True,
+            'cmath.h': True,
+            'complex.h': True,
+            'valarray.h': True,
+            'random.h': True,
+            'numeric.h': True,
+            'ratio.h': True,
+            'cfenv.h': True,
+            'iosfwd.h': True,
+            'ios.h': True,
+            'istream.h': True,
+            'ostream.h': True,
+            'iostream.h': True,
+            'fstream.h': True,
+            'sstream.h': True,
+            'strstream.h': True,
+            'iomanip.h': True,
+            'streambuf.h': True,
+            'cstdio.h': True,
+            'locale.h': True,
+            'clocale.h': True,
+            'codecvt.h': True,
+            'regex.h': True,
+            'atomic.h': True,
+            'thread.h': True,
+            'mutex.h': True,
+            'shared_mutex.h': True,
+            'future.h': True,
+            'condition_variable.h': True,
+            'filesystem.h': True,
+            'assert.h': True,
+            'ctype.h': True,
+            'errno.h': True,
+            'fenv.h': True,
+            'float.h': True,
+            'inttypes.h': True,
+            'iso646.h': True,
+            'math.h': True,
+            'setjmp.h': True,
+            'signal.h': True,
+            'stdalign.h': True,
+            'stdarg.h': True,
+            'stdatomic.h': True,
+            'stdbool.h': True,
+            'stddef.h': True,
+            'stdint.h': True,
+            'stdio.h': True,
+            'stdlib.h': True,
+            'stdnoreturn': True,
+            'tgmath.h': True,
+            'threads.h': True,
+            'time.h': True,
+            'uchar.h': True,
+            'wchar.h': True,
+            'wctype.h': True}
+
+    refs = file.filerefs('define', 'function', True)
+
+    for ref in refs:
+        if ref.ent().kind().check("virtual") and check.option().lookup('ignoreVirtual'):
+            return True
+        if ref.file().name() in standardLibraries.keys():
+            return True
+
+        if not isUsed(ref.ent()):
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1, ref.ent().name())
+
+def isUsed(ent):
+    if re.search('^~', ent.name()) or ent.ref('useby') or ent.ref('callby') or ent.name() == 'main':
+        return True
+    if ent.kind().check("virtual"):
+        subRefs = ent.refs("overriddenby")
+        for sub in subRefs:
+            if isUsed(sub.ent()):
+                return True
+
+    return False

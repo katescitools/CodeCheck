@@ -1,0 +1,66 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 9-20-2021
+
+import re
+
+ERR1 = 'Undefined escape sequence '
+
+def ids():
+    return ('A2-13-1', 'CPP_E027')
+
+def name(id):
+    return {
+        'A2-13-1': 'Published Standards/AUTOSAR/Only those escape sequences that are defined in ISO&#47;IEC 14882:2014 shall be used',
+        'CPP_E027': 'All Checks/Language Specific/C and C++/Expressions/Only those escape sequences that are defined in ISO&#47;IEC 14882:2014 shall be used',
+    }[id]
+
+def description():
+    return 'Only those escape sequences that are defined in ISO&#47;IEC 14882:2014 shall be used.'
+
+def detailed_description():
+    return '''\
+<p><b>Rationale</b></p>
+<p>The use of an undefined escape sequence leads to undefined behavior. The defined
+escape sequences (ISO/IEC 14882:2014) are: \\', \\", \\?, \\\\, \\a, \\b, \\f, \\n, \\r, \\t, \\v, \\<Octal
+Number>, \\x<Hexadecimal Number>.</p>
+<p>Note: Universal-character-names (\\u hex-quad and \\U hex-quad hex-quad) are also
+allowed in character and string literals (although they look similar to escape sequences,
+they are handled in a different way by the C++ language, see A2-13-6).</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+//% $Id: A2-13-1.cpp 305629 2018-01-29 13:29:25Z piotr.serwa $
+#include <string>
+void F()
+{
+    const std::string a = "\\k";         // Non-compliant
+    const std::string b = "\\n";         // Compliant
+    const std::string c = "\\U0001f34c"; // Compliant
+}
+</pre>
+<p><b>See also</b></p>
+<p>• MISRA C++ 2008 [7]: required 2-13-1 Only those escape sequences that are
+defined in ISO/IEC14882:2003 shall be used.</p>
+'''
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    invalidLiterals = re.compile('[^\\\\](\\\\(\\\\\\\\)*([^\'|"|?|\\\\|0-9|a-f|n|r|t|U|u|v|x]))')
+
+    for lexeme in file.lexer().lexemes():
+        token = lexeme.token()
+        string = lexeme.text()
+        if token in {'Literal', 'String'}:			
+            invalidLiteral = invalidLiterals.search(string)
+            if invalidLiteral:
+                line = lexeme.line_begin()
+                column = lexeme.column_begin() + invalidLiteral.start()
+                check.violation(None, file, line, column, ERR1 + invalidLiteral.group(1))

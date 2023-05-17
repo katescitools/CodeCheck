@@ -1,0 +1,131 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 11-08-2021
+import re
+
+ERR1 = '%1 not defined in a block'
+
+def ids():
+    return ('M3-4-1', 'MISRA08_3-4-1', 'CPP_D044')
+
+def name(id):
+    return {
+        'M3-4-1': 'Published Standards/AUTOSAR/An identifier declared to be an object or type shall be defined in a block that minimizes its visibility',
+        'MISRA08_3-4-1': 'Published Standards/MISRA-C++ 2008/3-4-1 An identifier declared to be an object or type shall be defined in a block that minimizes its visibility',
+        'CPP_D044': 'All Checks/Language Specific/C and C++/Declarations and Definitions/An identifier declared to be an object or type shall be defined in a block that minimizes its visibility',
+    }[id]
+
+def detailed_description(id):
+    return {
+        'M3-4-1': '''
+<p><b>Rationale</b></p>
+
+<p>Defining variables in the minimum block scope possible reduces the visibility of those variables and therefore reduces the possibility that these identifiers will be used accidentally. A corollary of this is that global objects (including singleton function objects) shall be used in more than one function.</p>
+
+<p><b>Example</b></p>
+<pre>
+void f ( int32_t k )
+{
+    int32_t j = k * k; // Non-compliant
+    {
+        int32_t i = j; // Compliant
+        std::cout &lt;&lt; i &lt;&lt; j &lt;&lt; std::endl;
+    }
+}
+</pre>
+
+<p>In the above example, the definition of <code>j</code> could be moved into the same block as <code>i</code>, reducing the possibility that <code>j</code> will be incorrectly used later in <code>f</code>.</p>
+
+<p><b>See also</b></p>
+
+<p>• C++ Core Guidelines [11]: ES.21: Don't introduce a variable (or constant) before you need to use it.</p>
+''',
+        'MISRA08_3-4-1': '''
+<p><b>Rationale</b></p>
+
+<p>Defining variables in the minimum block scope possible reduces the visibility of those variables and therefore reduces the possibility that these identifiers will be used accidentally. A corollary of this is that global objects (including singleton function objects) shall be used in more than one function.</p>
+
+<p><b>Example</b></p>
+<pre>
+void f ( int32_t k )
+{
+    int32_t j = k * k; // Non-compliant
+    {
+        int32_t i = j; // Compliant
+        std::cout &lt;&lt; i &lt;&lt; j &lt;&lt; std::endl;
+    }
+}
+</pre>
+
+<p>In the above example, the definition of <code>j</code> could be moved into the same block as <code>i</code>, reducing the possibility that <code>j</code> will be incorrectly used later in <code>f</code>.</p>
+''',
+        'CPP_D044': '''
+<p><b>Rationale</b></p>
+
+<p>Defining variables in the minimum block scope possible reduces the visibility of those variables and therefore reduces the possibility that these identifiers will be used accidentally. A corollary of this is that global objects (including singleton function objects) shall be used in more than one function.</p>
+
+<p><b>Example</b></p>
+<pre>
+void f ( int32_t k )
+{
+    int32_t j = k * k; // Non-compliant
+    {
+        int32_t i = j; // Compliant
+        std::cout &lt;&lt; i &lt;&lt; j &lt;&lt; std::endl;
+    }
+}
+</pre>
+
+<p>In the above example, the definition of <code>j</code> could be moved into the same block as <code>i</code>, reducing the possibility that <code>j</code> will be incorrectly used later in <code>f</code>.</p>
+''',
+    }[id]
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    lexer = None
+    refs = file.filerefs('Set Init', 'Object')
+
+    for ref in refs:
+        ok = False
+        if not lexer:
+            lexer = file.lexer()
+
+        lexeme = lexer.lexeme(ref.line(), ref.column())
+
+        # Look for a beginning of block
+        while lexeme and not re.match('{', lexeme.text()):
+            lexeme = lexeme.previous(True, True)
+
+        if lexeme and lexeme.text() == '{':
+            close = findClose(lexeme)
+            lexeme = lexeme.previous(True, True)
+
+            # Check if it is within the block
+            if lexeme and re.match(';|{', lexeme.text()):
+                if (close and close.line_begin() >= ref.line()) or not close:
+                    ok = True
+
+        if not ok:
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1, ref.ent().name())
+
+
+
+
+def findClose(lexeme):
+    count = 0
+
+    while lexeme and not (lexeme.text() == '}' and count == 0):
+        if lexeme.text() == '{':
+            count += 1
+        elif lexeme.text() == '}':
+            count -= 1
+
+        lexeme = lexeme.next(True, True)
+
+    return lexeme

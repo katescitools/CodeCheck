@@ -1,0 +1,76 @@
+
+ERR1 = 'The asm declaration is used.'
+
+# The ID for the check
+def ids():
+    return ('A7-4-1', 'CPP_A006')
+
+# The short name of the check
+def name(id):
+    return {
+        'A7-4-1': 'Published Standards/AUTOSAR/The asm declaration shall not be used.',
+        'CPP_A006': 'All Checks/Language Specific/C and C++/Assembly/The asm declaration shall not be used.',
+    }[id]
+
+
+# The long description of the check
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>Inline assembly code restricts the portability of the code.</p>
+
+<p><b>Example</b></p>
+
+<pre>
+// $Id: A7-4-1.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+#include &lt;cstdint&gt;
+std::int32_t Fn1(std::int32_t b) noexcept
+{
+    std::int32_t ret = 0;
+    // ...
+    asm("pushq %%rax \\n"
+        "movl %0, %%eax \\n"
+        "addl %1, %%eax \\n"
+        "movl %%eax, %0 \\n"
+        "popq %%rax"
+        : "=r"(ret)
+        : "r"(b)); // Non-compliant
+    return ret;
+}
+std::int32_t Fn2(std::int32_t b) noexcept
+{
+    std::int32_t ret = 0;
+    // ...
+    ret += b; // Compliant - equivalent to asm(...) above
+    return ret;
+}
+</pre>
+
+
+<p><b>See also</b></p>
+
+<p>HIC++ v4.0 [9]: 7.5.1 Do not use the asm declaration.
+'''
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    lexer = file.lexer(True, 8, False, False)
+    lex = lexer.first()
+
+    while lex:
+        if lex.token() == "Keyword" and lex.text() == "asm":
+            check.violation(None, file, lex.line_begin(), lex.column_begin(), ERR1)
+        lex = lex.next()

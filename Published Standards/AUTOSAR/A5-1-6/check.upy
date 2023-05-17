@@ -1,0 +1,64 @@
+import re
+
+# The ID for the check
+def ids():
+    return ('A5-1-6', 'CPP_E036')
+
+# The short name of the check
+def name(id):
+    return {
+        'A5-1-6': 'Published Standards/AUTOSAR/Return type of a non-void return type lambda expression should be explicitly specified',
+        'CPP_E036': 'All Checks/Language Specific/C and C++/Expressions/Return type of a non-void return type lambda expression should be explicitly specified',
+    }[id]
+
+# The short description of the check
+def description():
+    return 'Return type of a non-void return type lambda expression should be explicitly specified.'
+
+# The long description of the check
+def detailed_description():
+    return """\
+<p><b>Rationale</b></p>
+<p>If a non-void return type lambda expression does not specify its return type, then it may be confusing which type it returns. It leads to developers confusion.</p>
+<p>Note that, while the return type is specified, implicit conversion between type of returned value and return type specified in the lambda expression may occur. This problem should not be ignored.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 // $Id: A5-1-6.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+2 #include <cstdint>
+3 void Fn() noexcept
+4 {
+5 auto lambda1 = []() -> std::uint8_t {
+6 std::uint8_t ret = 0U;
+7 // ...
+8 return ret;
+9 }; // Compliant
+10 auto lambda2 = []() {
+11 // ...
+12 return 0U;
+13 }; // Non-compliant - returned type is not specified
+14 auto x = lambda1(); // Type of x is std::uint8_t
+15 auto y = lambda2(); // What is the type of y?
+16 }
+</pre>
+<p><b>See also</b></p>
+<p>none
+</p>"""
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for 
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    
+    for ref in file.filerefs("Define", "Lambda Function", True) :
+        if ref.ent().name() == "[unnamed]" and not (re.search("\)\s*(->).*\{", ref.ent().contents()) and re.search("return", ref.ent().contents())):
+                check.violation(ref.ent(), file, ref.line(), ref.column(), "Return type of a non-void return type lambda expression should be explicitly specified")

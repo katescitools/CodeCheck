@@ -1,0 +1,89 @@
+import re
+
+ERR1 = 'The library <clocale> (locale.h) and the setlocale function shall not be used'
+
+LOCALE_LIBRARY_STR = "<clocale>|locale.h|setlocale"
+
+# The ID for the check
+
+
+def ids():
+    return ('A18-0-3', 'CPP_L029')
+
+# The short name of the check
+
+
+def name(id):
+    return {
+        'A18-0-3': """\
+Published Standards/AUTOSAR/Library &lt;clocale&gt; (locale.h)""",
+        'CPP_L029': """\
+All Checks/Language Specific/C and C++/Libraries/Library &lt;clocale&gt;
+(locale.h)"""
+    }[id]
+
+
+# The short description of the check
+
+
+def description():
+    return 'The library <clocale> (locale.h) and the setlocale function shall not be used.'
+
+# The long description of the check
+
+
+def detailed_description():
+    return """
+<p><b>Rationale</b></p>
+<p>A call to the setlocale function introduces a data race with other calls to setlocale
+function.</p>
+<p>It may also introduce a data race with calls to functions that are affected by the current
+locale settings: fprintf, isprint, iswdigit, localeconv, tolower, fscanf, ispunct, iswgraph,
+mblen, toupper, isalnum, isspace, iswlower, mbstowcs, towlower, isalpha, isupper,
+iswprint, mbtowc, towupper, isblank, iswalnum, iswpunct, setlocale, wcscoll, iscntrl,
+iswalpha, iswspace, strcoll, wcstod, isdigit, iswblank, iswupper, strerror, wcstombs,
+isgraph, iswcntrl, iswxdigit, strtod, wcsxfrm, islower, iswctype, isxdigit, strxfrm, wctomb.</p>
+<p><b>See also</b></p>
+<p>• JSF December 2005 [8]: AV Rule 19 &lt;locale.h&gt; and the setlocale function shall
+not be used.</p>
+"""
+
+# Tests the type of file
+
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    if not re.search(LOCALE_LIBRARY_STR, file.contents()):
+        return
+
+    lexer = file.lexer()
+
+    if not lexer:
+        return
+
+    for lex in lexer:
+        if lex.text() == "include" and lex.token() == "Preprocessor":
+            next_lex = lex.next(ignore_whitespace=True)
+            library = list(next_lex.text())
+            library.pop()
+            library.pop(0)
+            library = "".join(library)
+
+            if library in {"clocale", "locale.h"}:
+                check.violation(
+                    next_lex.ent(), file, next_lex.line_begin(), next_lex.column_begin(), ERR1)
+
+    for ref in file.filerefs("Call", "~Virtual Function"):
+        if ref.ent().longname() == "setlocale":
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)

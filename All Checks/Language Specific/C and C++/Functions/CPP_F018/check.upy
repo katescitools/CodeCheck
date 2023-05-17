@@ -1,0 +1,123 @@
+ERR1 = 'Default arguments are different from base object.'
+
+
+# The ID for the check
+def ids():
+    return ('M8-3-1', 'MISRA08_8-3-1', 'CPP_F018')
+
+
+# The short name of the check
+def name(id):
+    return {
+        'M8-3-1': 'Published Standards/AUTOSAR/Parameters in an overriding virtual function shall either use the same default arguments as the function they override, or else shall not specify any default arguments.',
+        'MISRA08_8-3-1': 'Published Standards/MISRA-C++ 2008/8-3-1 Parameters in an overriding virtual function shall either use the same default arguments as the function they override, or else shall not specify any default arguments.',
+        'CPP_F018': 'All Checks/Language Specific/C and C++/Functions/Parameters in an overriding virtual function shall either use the same default arguments as the function they override, or else shall not specify any default arguments.',
+    }[id]
+
+
+# The long description of the check
+def detailed_description():
+    return '''
+<p>
+In an overriding virtual function, do not change the default parameters.
+</p>
+
+<p><b>Rationale</b></p>
+
+<p>
+Default arguments are determined by the static type of the object. If a default argument is different for a parameter in an overriding function, the value used in the call will be different when calls are made via the base or derived object, which may be contrary to developer expectations.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+class Base
+{
+public:
+    virtual void g1 ( int32_t a = 0 );
+    virtual void g2 ( int32_t a = 0 );
+    virtual void b1 ( int32_t a = 0 );
+};
+class Derived : public Base
+{
+public:
+    virtual void g1 ( int32_t a = 0 );  // Compliant - same default used
+    virtual void g2 ( int32_t a );      // Compliant -
+                                        // no default specified
+    virtual void b1 ( int32_t a = 10 ); // Non-compliant - different value
+};
+void f( Derived& d )
+{
+    Base& b = d;
+    b.g1 ( );   // Will use default of 0
+    d.g1 ( );   // Will use default of 0
+    b.g2 ( );   // Will use default of 0
+    d.g2 ( 0 ); // No default value available to use
+    b.b1 ( );   // Will use default of 0
+    d.b1 ( );   // Will use default of 10
+}
+</pre>
+'''
+
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    lexer = file.lexer()
+
+    if not lexer:
+        return
+
+    for func_ref in file.filerefs("Declare", "Virtual Function"):
+        base_params = {}
+
+        for param_ref in func_ref.ent().refs("", "Parameter"):
+            base_params[param_ref.ent().name()] = None
+
+        get_params_value(lexer, func_ref, base_params)
+
+        for override_ref in func_ref.ent().refs("Overriddenby", "Virtual Function"):
+            derived_params = {}
+
+            for param_ref in override_ref.ent().refs("", "Parameter"):
+                derived_params[param_ref.ent().name()] = None
+
+            get_params_value(lexer, override_ref, derived_params)
+
+            for param in derived_params:
+                if ((param not in base_params and derived_params[param])
+                    or (param in base_params and base_params[param] and derived_params[param] and base_params[param] != derived_params[param])
+                    or (param in base_params and not base_params[param] and derived_params[param])
+                    ):
+                    check.violation(
+                        override_ref.ent(), file, override_ref.line(), override_ref.column(), ERR1)
+
+
+def get_params_value(lexer, ref, params):
+    check_value = False
+    param_identifier = ""
+    lex = lexer.lexeme(ref.line(), ref.column())
+
+    while lex and (lex.line_begin() == ref.line()):
+        if lex.text() in params and lex.token() == "Identifier":
+            check_value = True
+            param_identifier = lex.text()
+        elif check_value and lex.token() == "Literal":
+            params[param_identifier] = lex.text()
+            check_value = False
+        elif check_value and (lex.text() == "," and lex.token() == "Operator") or (lex.text() == ")" and lex.token() == "Punctuation"):
+            check_value = False
+
+        lex = lex.next(ignore_comments=True,
+                       ignore_whitespace=True)

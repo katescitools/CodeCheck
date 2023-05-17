@@ -1,0 +1,106 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 2-28-23
+
+
+import re
+
+
+ERR1 = '#include %1 contains one or more non-standard characters'
+
+badInAngleBrackets = r'<.*(\'|"|\/\*|\/\/).*>$'
+badInDoubleQuotes  = r'".*(\'|\/\*|\/\/).*"$'
+
+
+def ids():
+    return ('MISRA08_16-2-4', 'CPP_H002')
+
+
+def name(id):
+    return {
+        'MISRA08_16-2-4': '''Published Standards/MISRA-C++ 2008/\
+16-2-4 The ', ", &#47;* or &#47;&#47; characters shall not occur in a header\
+ file name''',
+        'CPP_H002': '''All Checks/Language Specific/C and C++/Headers/\
+The ', ", &#47;* or &#47;&#47; characters shall not occur in a header file\
+ name''',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>
+It is undefined behaviour if the ', ", /* or // characters are used between &lt;
+and &gt; delimiters or the ', /* or // characters are used between the "
+delimiters in a header name preprocessing token.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+#include "fi'le.h" // Non-compliant
+</pre>
+'''
+
+
+def report_info(id):
+    return {
+        'MISRA08_16-2-4': {
+            'Category': 'Required',
+        },
+    }[id]
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return file.kind().check('Code File, Header File')
+
+
+def test_global():
+    return False
+
+
+def check(check, file):
+    # Skip if the lexemes don't have entities
+    if file.kind().check('Unknown, Unresolved'):
+        return
+
+    # Skip if there are no includes
+    if not file.filerefs('Include', 'File', True):
+        return
+
+    # Go through the lexemes with entities
+    lex = file.lexer().first()
+    while lex:
+
+        # Skip until #include and then get the next useful token
+        if lex.token() != 'Preprocessor' or lex.text() != 'include':
+            lex = lex.next(True, True)
+            continue
+        lex = lex.next(True, True)
+
+        # Get value of this token
+        string = None
+        if lex.ent() and lex.ent().kind().check('Macro'):
+            string = lex.ent().type()
+        elif lex.token() == 'String':
+            string = lex.text()
+
+        # Skip if no value was found for the token
+        if not string:
+            lex = lex.next()
+            continue
+
+        # Skip if the value is not a violation
+        if not re.match(badInAngleBrackets, string) and not re.match(badInDoubleQuotes, string):
+            lex = lex.next(True, True)
+            continue
+
+        check.violation(file, file, lex.line_begin(), lex.column_begin(), ERR1, string)
+
+        lex = lex.next(True, True)

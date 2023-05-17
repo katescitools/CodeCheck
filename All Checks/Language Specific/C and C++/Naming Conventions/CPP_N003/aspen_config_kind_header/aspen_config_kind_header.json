@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N003",
+            "options": {
+                "FileRun": false,
+                "HeaderRun": true,
+                "HeaderconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Header",
+    "parents": [
+    ]
+}

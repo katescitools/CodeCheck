@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_EH008",
+            "options": {
+                "arch_1": "application.cpp",
+                "arch_2": "library.cpp"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Aspen",
+    "parents": [
+    ]
+}
+

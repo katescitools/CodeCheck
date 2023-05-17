@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "VariableconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - All",
+    "parents": [
+    ]
+}

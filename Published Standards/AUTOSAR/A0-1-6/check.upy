@@ -1,0 +1,91 @@
+
+ERR1 = 'Unused type declaration'
+
+# The ID for the check
+
+
+def ids():
+    return ('A0-1-6', 'CPP_T003')
+
+# The short name of the check
+
+
+def name(id):
+    return {
+        'A0-1-6': 'Published Standards/AUTOSAR/There should be no unused type declarations',
+        'CPP_T003': 'All Checks/Language Specific/C and C++/Types/There should be no unused type declarations',
+    }[id]
+
+# The short description of the check
+
+
+def description():
+    return 'There should be no unused type declarations.'
+
+# The long description of the check
+
+
+def detailed_description():
+    return """\
+
+<p><b>Rationale</b><br>
+Unused type declarations make code unnecessary more complex and complicate review process. Unused types can be redundant or be unused by mistake.
+</p>
+
+<p>
+Note: Libraries development require introduction new types not used internally.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+// $Id: A0-1-6.cpp$
+#include <cstdint>
+
+std::uint32_t Fn() noexcept
+{
+  using LocalUIntPtr = std::uint32_t*;
+  return 0U;
+}
+</pre>
+
+<p><b>See also</b><br>
+• MISRA C++ 2008 [7]: Rule 0-1-5 reclassified from required to advisory.
+</p>
+
+"""
+
+# Tests the type of file
+
+
+def test_entity(file):
+    return file.kind().check('code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    init = True
+    referenced = 0
+
+    for ref in sorted(file.filerefs(entkindstring="Type Alias"), key=lambda ref: ref.ent()):
+        if init:
+            prev_ref = ref
+            init = False
+            continue
+        else:
+            if prev_ref.line() == ref.line() and prev_ref.ent() == ref.ent():
+                referenced += 1
+            elif referenced == 2 and ref.ent() != prev_ref.ent():
+                check.violation(prev_ref.ent(), prev_ref.file(),
+                                prev_ref.line(), prev_ref.column(), ERR1)
+                referenced = 0
+            else:
+                referenced = 0
+
+        prev_ref = ref

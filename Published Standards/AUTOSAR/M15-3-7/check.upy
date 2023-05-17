@@ -1,0 +1,63 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 11-03-2022
+def ids():
+    return ('M15-3-7')
+
+def name(id):
+    return {
+        'M15-3-7': 'Published Standards/AUTOSAR/Where multiple handlers are provided in a single try-catch statement or function-try-block, any ellipsis (catch-all) handler shall occur last',
+    }[id]
+
+def detailed_description():
+    return """\
+<p><b>This check is automatically run</b></p>
+<p>This check is always run during the strict analysis, any violations will be reported as analysis errors.</p>
+<p><b>Rationale</b></p>
+<p>If the catch-all handler is found before any other handler, that behaviour
+will be performed. Any handlers after the catch-all are unreachable code and
+can never be executed.</p>
+<p><b>Example</b></p>
+<pre>
+void f1 ( )
+{
+  try
+  {
+    // ...
+  }
+  catch ( int32_t i ) // int handler
+  {
+    // Handle int exceptions
+  }
+  catch( ... ) // catch-all handler
+  {
+    // Handle all other exception types
+  }
+}
+void f2 ( )
+{
+  try
+  {
+    // ...
+  }
+  catch( ... ) // catch-all handler
+  {
+    // Handle all exception types
+  }
+  catch ( int32_t i ) // Non-compliant – handler will never be called
+  {
+  }
+}</pre>
+"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def noop_always():
+    return True
+
+def check(check, file):
+    pass

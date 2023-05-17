@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_I002",
+            "options": {
+                "C99": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "C99",
+    "parents": [
+    ]
+}

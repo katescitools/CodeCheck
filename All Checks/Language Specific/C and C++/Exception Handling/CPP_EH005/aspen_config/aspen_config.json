@@ -1,0 +1,19 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_EH005",
+            "options": {
+                "ctorIsThrow": true,
+                "dtorIsThrow": true,
+                "tryIsThrow": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Aspen",
+    "parents": [
+    ]
+}
+

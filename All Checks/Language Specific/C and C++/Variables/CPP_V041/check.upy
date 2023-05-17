@@ -1,0 +1,74 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 06-18-2022
+
+ERR1 = 'Identifier "%1" possibly hiding outer definition from line %2'
+
+def id():
+    return ('CPP_V041')
+
+def name(id):
+    return {'CPP_V041': "All Checks/Language Specific/C and C++/Variables/" +  """\
+Local variables should not shadow outer variables within the scope of the function"""}[id]
+
+def description():
+    return "Names for local variables shall be chosen so that they do not conflict with any names of variables that are external to, but within the scope of, the function. Names for static variables shall be chosen so that they do not conflict with any names of variables that are external to, but within the scope of, the module."
+
+def detailed_description():
+    return """\
+<p>The terms outer and inner scope are defned as follows: Identifers that have file scope can be 
+considered as having the outermost scope. Identifers that have block scope have a more inner 
+scope. Successive, nested blocks, introduce more inner scopes. This CodeCheck disallows the 
+case where a second inner definition hides an outer definition. If the second definition does not 
+hide the first definition, then this rule is not violated. Hiding identifiers with an identifier of 
+the same name in a nested scope leads to code that is confusing and hard to maintain. </p>
+<p><b>Example</b>
+  int16_t i; 
+  { 
+     int16_t i;   /* This is a different variable                    */ 
+                  /* This is not compliant                           */ 
+     i = 3;       /* It could be confusing as to which i this refers */ 
+  }
+</pre></p>"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    identifiers = []
+     
+    lexeme = file.lexer().first()
+    if not lexeme:
+        return
+
+    lexeme = processBlock(identifiers, lexeme, check, file)
+    
+
+           
+                
+def processBlock(identifiers, lexeme, check, file):
+    while lexeme:
+        if lexeme.ref() and lexeme.ref().kind().check('Definein, Init') and not lexeme.ent().kind().check('Function, Macro, Union, struct, enum'):
+            if (lexeme.previous(True, True)):
+                seen = False
+                for i in identifiers:
+                    if lexeme.ent().name()==i.ent().name():
+                        check.violation(lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR1, lexeme.text(), i.line_begin())
+                        seen = True
+                if not seen and not lexeme.ent().kind().check('Parameter, Function, Macro'):
+                    identifiers.append(lexeme)
+            lexeme = lexeme.next()
+
+        elif lexeme.text()=="{":
+            lexeme=lexeme.next()
+            lexeme = processBlock(identifiers.copy(), lexeme, check, file)
+        elif lexeme.text()=="}":
+            lexeme= lexeme.next()
+            return lexeme
+        else:
+            lexeme = lexeme.next()
+        
+            

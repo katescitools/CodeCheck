@@ -1,0 +1,243 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 10-18-21
+
+
+import re
+
+from Modules import findClose
+
+
+ERR1 = 'Loop counter %1 may be modified'
+ERR2 = 'Loop counter %1 is being modified'
+
+
+def ids():
+    return ('M6-5-3', 'MISRA08_6-5-3', 'CPP_C022')
+
+
+def name(id):
+    return {
+        'M6-5-3': 'Published Standards/AUTOSAR/The loop-counter shall not be modified within condition or statement',
+        'MISRA08_6-5-3': 'Published Standards/MISRA-C++ 2008/6-5-3 The loop-counter shall not be modified within condition or statement',
+        'CPP_C022': 'All Checks/Language Specific/C and C++/Control Flow/The loop-counter shall not be modified within condition or statement',
+    }[id]
+
+
+def detailed_description():
+    return '''\
+<p><b>Developer's Note</b></p>
+<p>
+This check can only test Loop count variables defined within the instantiation
+of the for loop.
+</p>
+
+<p><b>Rationale</b></p>
+<p>
+Modification of the <i>loop-counter</i> other than in <i>expression</i> leads to
+a badly-formed <i>for</i> loop.
+</p>
+
+<p><b>Example</b></p>
+<pre>
+bool modify ( int32_t * pX )
+{
+    *pX++;
+    return ( *pX &lt; 10 );
+}
+for ( x = 0; modify ( &x ); ) // Non-compliant
+{
+}
+for ( x = 0; x &lt; 10; )
+{
+    x = x * 2; // Non-compliant
+}
+</pre>
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def refBetween(ref, startLine, startColumn, endLine, endColumn):
+    # False if before start
+    if ref.line() < startLine:
+        return False
+    if ref.line() == startLine and ref.column() < startColumn:
+        return False
+
+    # False if after end
+    if ref.line() > endLine:
+        return False
+    if ref.line() == endLine and ref.column() > endColumn:
+        return False
+
+    return True
+
+
+def testLoop(lexeme, function, check):
+
+    # Move into for loop structure
+    lexeme = lexeme.next(True, True)
+    lexeme = lexeme.next(True, True)
+
+    # Check the first parameter to the for loop
+    init = {}
+    while lexeme.text() != ';':
+
+        # We don't want to test a namespace or class, only data member
+        if lexeme.next() and lexeme.next().text() == ':':
+
+            if lexeme.next().next().text() == ':':
+                lexeme = lexeme.next()
+                lexeme = lexeme.next()
+                lexeme = lexeme.next()
+
+            elif lexeme.next().next().text() != ':':
+                return lexeme
+
+        if lexeme.token() == 'Identifier' and lexeme.next(True, True).text() == '=' and lexeme.ent():
+            init[lexeme.ent().name()] = lexeme.ent()
+        lexeme = lexeme.next()
+
+    # Check the condition to the for loop
+    lexeme = lexeme.next(True, True)
+
+    while lexeme.text() != ';':
+
+        ref, ent = lexeme.ref(), lexeme.ent()
+
+        if ref and ent.name() in init:
+            if ref.kind().check('Addr Useby'):
+                check.violation(ent, ref.file(), ref.line(), ref.column(), ERR1, ent.name())
+            elif ref.kind().check('Setby Modifyby'):
+                check.violation(ent, ref.file(), ref.line(), ref.column(), ERR2, ent.name())
+
+        lexeme = lexeme.next()
+
+
+    # Check the third parameter to the for loop
+    while lexeme.text() != ')':
+        lexeme = lexeme.next(True, True)
+
+
+    startLine = lexeme.line_begin()
+    startColumn = lexeme.column_begin()
+
+    # There is no for loop block
+    if lexeme.next(True, True).text() != '{':
+
+        while (lexeme.text() != ';'):
+
+            if lexeme.token() == 'Keyword' and lexeme.text() == 'for':
+                lexeme = testLoop(lexeme, function, check)
+            lexeme = lexeme.next()
+
+    # There is a standard loop block
+    else:
+
+        while lexeme.text() != '{':
+            lexeme = lexeme.next(True, True)
+        lexeme = lexeme.next(True, True)
+
+        count = 1
+
+        # Test for nexted for loops
+        while count > 0:
+
+            if lexeme.token() == 'Keyword' and lexeme.text() == 'for':
+                lexeme = testLoop(lexeme, function, check)
+            elif lexeme.text() == '{':
+                count += 1
+            elif lexeme.text() == '}':
+                count -= 1
+
+            lexeme = lexeme.next()
+
+    # Get end markers
+    endLine = lexeme.line_begin()
+    endColumn = lexeme.column_begin()
+
+    # Check each identifier within init for proper usage
+    for term in init.values():
+
+        if term.type() and re.search('\\bconst\\b\\w+', term.type()):
+            continue
+
+        # Not guarenteed that the value is changed, but it is possible
+        useRefs = term.refs('Addr Useby')
+        for ref in useRefs:
+
+            if refBetween(ref, startLine, startColumn, endLine, endColumn):
+                check.violation(term, ref.file(), ref.line(), ref.column(), ERR1, term.name())
+
+        # Value has changed
+        setRefs = term.refs('Setby, Modifyby')
+        for ref in setRefs:
+
+            if refBetween(ref, startLine, startColumn, endLine, endColumn):
+                check.violation(term, ref.file(), ref.line(), ref.column(), ERR2, term.name())
+
+    return lexeme
+
+
+def getFunctionEndLine(function, lexeme):
+    # Strict parser
+    end = function.ref('Endby')
+    if end:
+        return end.line()
+
+    # Fuzzy parser: (
+    while lex and lex.text() != '(':
+        lex = lex.next(True, True)
+    # Fuzzy parser: )
+    lex = findClose(lex)
+    # Fuzzy parser: {
+    while lex and lex.text() != '{':
+        lex = lex.next(True, True)
+    # Fuzzy parser: }
+    return findClose(lex)
+
+
+def check(check, file):
+    # Pull a list of all functions that are defined within this file
+    functionsDefined = file.filerefs('Define', 'Function')
+
+    # loop through all defined functions
+    for define in functionsDefined:
+        function = define.ent()
+
+        # Pull text of function
+        text = function.contents()
+        # Remove any // style comments
+        re.sub('\/\/.*?\n','\n', text)
+        # Remove any /* */ style comments
+        re.sub('\/\*[\s\S]*?\*\/','\n', text)
+        # check if a for loop exists
+        if not re.search('for\s*\(', text):
+            continue
+
+        # Spin up lexer to find for loop
+        lexer = file.lexer()
+        lexeme = lexer.lexeme(define.line(), define.column())
+        end = getFunctionEndLine(function, lexeme)
+        if not end:
+            continue
+
+        # Check entire function
+        while lexeme.line_begin() < end:
+
+            # Test a for loop
+            if lexeme.token() == 'Keyword' and lexeme.text() == 'for':
+                lexeme = testLoop(lexeme, function, check)
+            else:
+                lexeme = lexeme.next(True, True)

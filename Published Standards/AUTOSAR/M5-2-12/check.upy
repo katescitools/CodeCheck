@@ -1,0 +1,80 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 10-15-21
+
+
+import re
+
+
+ERR1 = 'Array %1 decayed to a pointer'
+
+
+def ids():
+    return ('M5-2-12', 'MISRA08_5-2-12', 'CPP_T023')
+
+
+def name(id):
+    return {
+        'M5-2-12': 'Published Standards/AUTOSAR/An identifier with array type passed as a function argument shall not decay to a pointer',
+        'MISRA08_5-2-12': 'Published Standards/MISRA-C++ 2008/5-2-12 An identifier with array type passed as a function argument shall not decay to a pointer',
+        'CPP_T023': 'All Checks/Language Specific/C and C++/Types/An identifier with array type passed as a function argument shall not decay to a pointer',
+    }[id]
+
+
+def detailed_description():
+    return '''\
+
+<p><b>Rationale</b><br>
+When a variable with array type decays to a pointer, its bounds are lost.
+</p>
+
+</p>
+If a design requires arrays of different lengths, then a class should be used to encapsulate the array objects and so ensure that the dimensionality is maintained.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+void f1( int32_t p[ 10 ] );
+void f2( int32_t *p );
+void f3( int32_t ( &p )[ 10 ] );
+void b ()
+{
+    int32_t a[ 10 ];
+    f1( a ); // Non-compliant - Dimension "10" lost due to array to pointer conversion.
+    f2( a ); // Non-compliant - Dimension "10" lost due to array to pointer conversion.
+    f3( a ); // Compliant - Dimension preserved.
+}
+
+</pre>
+
+<p><b>See also</b><br>
+• C++ Core Guidelines [11]: C.152: Never assign a pointer to an array of derived
+class objects to a pointer to its base.<br>
+• C++ Core Guidelines [11]: R.2: In interfaces, use raw pointers to denote
+individual objects (only).<br>
+• C++ Core Guidelines [11]: I.13: Do not pass an array as a single pointer.
+</p>
+
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def check(check, file):
+    # Every time something is turned into a pointer
+    for ptr in file.filerefs('C Assignby Ptr'):
+        array = ptr.scope()
+
+        # If it's an array
+        if re.match('.*\\[.*\\]', array.type()):
+            check.violation(array, file, ptr.line(), ptr.column(), ERR1, array.name())

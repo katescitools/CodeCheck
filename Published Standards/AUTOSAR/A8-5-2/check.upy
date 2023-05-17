@@ -1,0 +1,190 @@
+ERR1 = 'Braced-initialization, without equals sign, shall be used for variable initialization'
+
+
+# 1 Byte data is not narrowed down
+BYTE_TYPES = {"int", "double", "float", "char"}
+
+
+# The ID for the check
+def ids():
+    return ('A8-5-2', 'CPP_V019')
+
+def name(id):
+    return {
+        'A8-5-2': """\
+Published Standards/AUTOSAR/Initializing Variables Without Using
+Braced-Initialization""",
+        'CPP_V019': """\
+All Checks/Language Specific/C and C++/Variables/Initializing Variables Without Using Braced-Initialization"""
+
+    }[id]
+
+# The long description of the check
+def detailed_description():
+    return """
+<p><b>Rule</b></p>
+<p>Braced-initialization {}, without equals sign, shall be used for variable
+initialization.</p>
+<p><b>Rationale</b></p>
+<p>Braced-initialization using {} braces is simpler and less ambiguous than other forms
+of initialization. It is also safer, because it does not allow narrowing conversions for
+numeric values, and it is immune to C++’s most vexing parse.</p>
+<p>The use of an equals sign for initialization misleads into thinking that an assignment is
+taking place, even though it is not. For built-in types like int, the difference is academic,
+but for user-defined types, it is important to explicitly distinguish initialization from
+assignment, because different function calls are involved.</p>
+<p>Note that most vexing parse is a form of syntactic ambiguity resolution in C++, e.g.
+“Class c()” could be interpreted either as a variable definition of class “Class” or a
+function declaration which returns an object of type “Class”.</p>
+<p>Note that in order to avoid grammar ambiguities, it is highly recommended to use only
+braced-initialization {} within templates.</p>
+<p><b>Exception</b></p>
+<p>If a class declares both a constructor taking std::initializer_list argument and a
+constructor which invocation will be ignored in favor of std::initializer_list constructor,
+this rule is not violated by calling a constructor using () parentheses, see A8-5-4.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 // $Id: A8-5-2.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+2 #include &lt;cstdint&gt;
+3 #include &lt;initializer_list&gt;
+4 void F1() noexcept
+5 {
+6 std::int32_t x1 =
+7 7.9; // Non-compliant - x1 becomes 7 without compilation error
+8 // std::int32_t y {7.9}; // Compliant - compilation error, narrowing
+9 std::int8_t x2{50}; // Compliant
+10 std::int8_t x3 = {50}; // Non-compliant - std::int8_t x3 {50} is equivalent
+11 // and more readable
+12 std::int8_t x4 =
+13 1.0; // Non-compliant - implicit conversion from double to std::int8_t
+14 std::int8_t x5 = 300; // Non-compliant - narrowing occurs implicitly
+15 std::int8_t x6(x5); // Non-compliant
+16 }
+17 class A
+18 {
+19 public:
+20 A(std::int32_t first, std::int32_t second) : x{first}, y{second} {}
+21
+22 private:
+23 std::int32_t x;
+24 std::int32_t y;
+25 };
+26 struct B
+27 {
+28 std::int16_t x;
+29 std::int16_t y;
+30 };
+31 class C
+32 {
+33 public:
+34 C(std::int32_t first, std::int32_t second) : x{first}, y{second} {}
+35 C(std::initializer_list&lt;std::int32_t&gt; list) : x{0}, y{0} {}
+36
+37 private:
+38 std::int32_t x;
+39 std::int32_t y;
+40 };
+41 void F2() noexcept
+42 {
+43 A a1{1, 5}; // Compliant - calls constructor of class A
+44 A a2 = {1, 5}; // Non-compliant - calls a default constructor of class A
+45 // and not copy constructor or assignment operator.
+46 A a3(1, 5); // Non-compliant
+47 B b1{5, 0}; // Compliant - struct members initialization
+48 C c1{2, 2}; // Compliant - C(std::initializer_list&lt;std::int32_t&gt;)
+49 // constructor is
+50 // called
+51 C c2(2, 2); // Compliant by exception - this is the only way to call
+52 // C(std::int32_t, std::int32_t) constructor
+53 C c3{{}}; // Compliant - C(std::initializer_list&lt;std::int32_t&gt;) constructor
+54 // is
+55 // called with an empty initializer_list
+56 C c4({2, 2}); // Compliant by exception -
+57 // C(std::initializer_list&lt;std::int32_t&gt;)
+58 // constructor is called
+59 };
+60 template &lt;typename T, typename U&gt;
+61 void F1(T t, U u) noexcept(false)
+62 {
+63 std::int32_t x = 0;
+64 T v1(x); // Non-compliant
+65 T v2{x}; // Compliant - v2 is a variable
+66 // auto y = T(u); // Non-compliant - is it construction or cast?
+67 // Compilation error
+68 };
+69 void F3() noexcept
+70 {
+71 F1(0, "abcd"); // Compile-time error, cast from const char* to int
+72 }
+</pre>
+<p><b>See also</b></p>
+<p>• C++ Core Guidelines [11]: ES.23 Prefer the {} initializer syntax.</p>
+<p>• C++ Core Guidelines [11]: T.68: Use {} rather than () within templates to avoid
+ambiguities.</p>
+<p>• C++ Core Guidelines [11]: ES.64: Use the T{e} notation for construction.</p>
+<p>• Effective Modern C++ [13]: Item 7. Distinguish between () and {} when creating
+objects.</p>
+"""
+
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    lexer = file.lexer()
+
+    if not lexer:
+        return
+
+    for obj_ref in file.filerefs("C Set Init", "Local Object"):
+        macro = True if obj_ref.ent().freetext("DefinedInMacro") else False
+        value = obj_ref.ent().value() if obj_ref.ent().value() else ""
+        type_ref = obj_ref.ent().ref("Typed")
+        last_type_ref = type_ref
+        obj_ref_type = None
+        exception = False
+
+        lex = lexer.lexeme(obj_ref.line(), obj_ref.column())
+        lex = lex.next(ignore_comments=True, ignore_whitespace=True)
+        next_lex = lex.next(ignore_comments=True, ignore_whitespace=True)
+
+        while(type_ref):
+            last_type_ref = type_ref
+            obj_ref_type = type_ref.ent().type()
+            type_ref = type_ref.ent().ref("Typed")
+
+        if not obj_ref_type:
+            obj_ref_type = obj_ref.ent().type()
+
+        if macro or ("*" in obj_ref_type) or ("&" in obj_ref_type):
+            continue
+        elif any(_type in obj_ref_type for _type in BYTE_TYPES) and value.isdigit() and int(value) < 256 and next_lex.text() != "{":
+            continue
+        elif last_type_ref and last_type_ref.ent().kind().check("Class, Struct, Enum"):  # User-defined Types
+            # Assignment
+            if (lex.text() == "=" and lex.token() == "Operator") and next_lex.text() != "{":
+                continue
+            # Exception
+            elif (lex.text() == "(" and lex.token() == "Punctuation") and next_lex.text() == "{" and lex.token() == "Punctuation":
+                continue
+            elif (lex.text() == "{" and lex.token() == "Punctuation") and next_lex.text() == "{" and lex.token() == "Punctuation":
+                continue
+
+            for func_ref in last_type_ref.ent().refs("Define", "Member Function"):
+                if (func_ref.ent().name() == last_type_ref.ent().name()) and ("initializer_list" in func_ref.ent().parameters()):
+                    exception = True
+                    break
+
+        if not exception and ((lex.text() == "=" and lex.token() == "Operator") or (lex.text() == "(" and lex.token() == "Punctuation")):
+            check.violation(obj_ref.ent(), file, obj_ref.line(),
+                            obj_ref.column(), ERR1)

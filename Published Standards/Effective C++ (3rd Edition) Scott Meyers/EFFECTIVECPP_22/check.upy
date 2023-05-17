@@ -1,0 +1,79 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Kacy Stocks
+# 10-2-18
+# Rewritten by Robby Bennett
+# 3-2-23
+
+
+import re
+
+
+ERR1 = 'Non-private member object'
+
+
+def ids():
+    return ('EFFECTIVECPP_22', 'CPP_D034')
+
+
+def name(id):
+    return {
+        'EFFECTIVECPP_22': '''Published Standards/Effective C++ (3rd Edition) Scott Meyers/\
+22. Datamembers should be declared private''',
+        'CPP_D034': '''All Checks/Language Specific/C and C++/Declarations and Definitions/\
+Datamembers should be declared private'''
+    }[id]
+
+
+def detailed_description():
+    return '''\
+<b><p>Rationale</p></b>
+
+<p>
+Declaring datamembers privately allows you to control accessibility of
+datamembers.
+</p>
+
+<p>
+When the the client uses the code, they should only be able to use methods of
+the class to prevent confusion.
+</p>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('Header File, Code File')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def define_options(check):
+    check.options().checkbox('allowProtected', 'Allow protected datamembers', False)
+
+
+def check(check, file):
+    global flagged, entKindString
+    if 'flagged' not in globals():
+        flagged = set()
+        if check.options().lookup('allowProtected'):
+            entKindString = 'Object Member ~Private ~Protected'
+        else:
+            entKindString = 'Object Member ~Private'
+
+    for ref in file.filerefs('Define, Declare', entKindString, True):
+        ent = ref.ent()
+
+        if ent in flagged:
+            continue
+        flagged.add(ent)
+
+        check.violation(ent, file, ref.line(), ref.column(), ERR1)

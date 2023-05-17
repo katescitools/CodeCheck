@@ -1,0 +1,146 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 10-27-21
+
+
+import re
+
+
+ERR1 = 'Function pointer is cast to another pointer type'
+
+
+def ids():
+    return ('M5-2-6', 'MISRA08_5-2-6', 'CPP_P047')
+
+
+def name(id):
+    return {
+        'M5-2-6': 'Published Standards/AUTOSAR/A cast shall not convert a pointer to a function to any other pointer type, including a pointer to function type',
+        'MISRA08_5-2-6': 'Published Standards/MISRA-C++ 2008/5-2-6 A cast shall not convert a pointer to a function to any other pointer type, including a pointer to function type',
+        'CPP_P047': 'All Checks/Language Specific/C and C++/Pointers/A cast shall not convert a pointer to a function to any other pointer type, including a pointer to function type',
+    }[id]
+
+
+def detailed_description():
+    return '''\
+
+<p><b>Rationale</b><br>
+Conversion of a function pointer to a non-function pointer type causes <i>undefined behaviour</i>.
+</p>
+
+<p
+<i>Undefined behaviour</i> may arise if a function call is made using a pointer that is the result of a
+function pointer conversion.
+</p>
+
+<p><b>Example</b><br></p>
+<pre style="margin-top:0;padding-top:0;">
+void f ( int32_t )
+{
+    reinterpret_cast< void (*)( ) >( &f ); // Non-compliant
+    reinterpret_cast< void * >( &f );      // Non-compliant
+}
+</pre>
+
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def prevUseful(lexeme):
+    return lexeme.previous(ignore_whitespace=True, ignore_comments=True)
+
+
+def nextUseful(lexeme):
+    return lexeme.next(ignore_whitespace=True, ignore_comments=True)
+
+
+def check(check, file):
+    try:
+        lexer = file.lexer()
+    except:
+        return
+
+    for ref in file.filerefs('Use Ptr', 'Function ~Unresolved'):
+
+        # Go back and see if there is a cast
+        lexeme = lexer.lexeme(ref.line(), ref.column())
+        cast = False
+        while lexeme:
+            if lexeme.text() in { 'dynamic_cast', 'reinterpret_cast', 'static_cast', 'const_cast' }:
+                cast = True
+                lexeme = nextUseful(nextUseful(lexeme))
+                break
+            elif lexeme.text() == ';':
+                break
+            lexeme = prevUseful(lexeme)
+
+        if cast:
+            # Get get the type of cast
+            returnType = ''
+            parameterTypes = ''
+            typedef = None
+            function = False
+            unresolved = False
+            while lexeme and lexeme.text() != '>':
+                # Return type
+                if not parameterTypes and lexeme.text() != '(':
+                    if not returnType:
+                        returnType = lexeme.text()
+                        if not typedef and lexeme.ent() and lexeme.ent().kindname() == 'Typedef':
+                            typedef = lexeme.ent()
+                            if 'Unresolved' in lexeme.ent().kind().longname():
+                                unresolved = True
+                    else:
+                        returnType += ' ' + lexeme.text()
+
+                # ( * )
+                elif not parameterTypes and lexeme.text() == '(':
+                    if nextUseful(lexeme).text() == '*' and nextUseful(nextUseful(lexeme)).text() == ')' and nextUseful(nextUseful(nextUseful(lexeme))).text() == '(':
+                        function = True
+                        lexeme = nextUseful(nextUseful(nextUseful(nextUseful(lexeme))))
+                        if lexeme.text() != ')':
+                            parameterTypes = lexeme.text()
+                    else:
+                        break
+
+                # Return type
+                elif lexeme.text() != ')':
+                    parameterTypes += ' ' + lexeme.text()
+                lexeme = nextUseful(lexeme)
+
+            # Compare the type of cast
+            if not function or not ref.ent().type() == returnType or not ref.ent().parameters() == parameterTypes:
+                violation = False
+
+                # Typedef
+                if typedef and not unresolved:
+                    typedefReturn = re.search('(^.*) \\(', typedef.type())
+                    typedefParameters = re.search('\\)\\((.*)\\)', typedef.type())
+
+                    if not typedefReturn or not typedefParameters:
+                        violation = True					
+                    elif typedefReturn and ref.ent().type() != typedefReturn.group(1):
+                        violation = True
+                    elif typedefParameters and ref.ent().parameters() != typedefParameters.group(1):
+                        violation = True
+
+                # Manually typed
+                elif not unresolved:
+                    if ref.ent().type() != returnType:
+                        violation = True
+                    elif ref.ent().parameters() != parameterTypes:
+                        violation = True
+
+                if violation:
+                    check.violation(ref.ent(), ref.file(), ref.line(), ref.column(), ERR1)

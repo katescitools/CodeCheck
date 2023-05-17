@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N002",
+            "options": {
+                "EnumcapOpt": "ignore"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Capitalization - ignore",
+    "parents": [
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_C036",
+            "options": {
+                "allowInNested": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "For Aspen",
+    "parents": [
+    ]
+}
+

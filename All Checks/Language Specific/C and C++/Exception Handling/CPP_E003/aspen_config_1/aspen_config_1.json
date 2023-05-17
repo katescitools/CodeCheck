@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_E003",
+            "options": {
+                "ignoreEllipsis": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Not Ignoring Ellipsis",
+    "parents": [
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N003",
+            "options": {
+                "Fileprefix": "prefix",
+                "Filesuffix": "suffix"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Prefix and Suffix - Required",
+    "parents": [
+    ]
+}

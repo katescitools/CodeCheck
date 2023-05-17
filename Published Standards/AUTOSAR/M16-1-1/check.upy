@@ -1,0 +1,155 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+
+
+import re
+
+
+ERR1 = '"defined" preprocessor operator not used in one of the two standard forms'
+ERR2 = 'MACRO used as the "defined" preprocessor operator'
+
+
+def ids():
+	return ('M16-1-1', 'MISRA04_19.14', 'MISRA08_16-1-1', 'CPP_PR007')
+
+
+def name(id):
+	return {
+		'M16-1-1': 'Published Standards/AUTOSAR/The defined preprocessor operator shall only be used in one of the two standard forms',
+		'MISRA04_19.14': 'Published Standards/MISRA-C 2004/19.14 The defined preprocessor operator shall only be used in one of the two standard forms',
+		'MISRA08_16-1-1': 'Published Standards/MISRA-C++ 2008/16-1-1 The defined preprocessor operator shall only be used in one of the two standard forms',
+		'CPP_PR007': 'All Checks/Language Specific/C and C++/Preprocessor/The defined preprocessor operator shall only be used in one of the two standard forms',
+	}[id]
+
+
+def description():
+	return 'The defined preprocessor operator shall only be used in one of the two standard forms.'
+
+
+def detailed_description(id):
+	return '''\
+
+<p>
+<b>Rationale</b>
+</p>
+
+<p>
+The only two permissible forms for the defined preprocessor operator are:
+</p>
+
+<p>
+<i>defined</i> <i>(</i> identifier <i>)</i>
+</p>
+
+<p>
+<i>defined</i> identifier
+</p>
+
+<p>
+Any other form leads to undefined behaviour, for example:
+</p>
+
+<p>
+<b>Example</b>
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+#if defined ( X > Y ) // Non-compliant – constraint violation
+</pre>
+
+<p>
+Generation of the token defined during expansion of a #if or #elif preprocessing directive also
+leads to undefined behaviour and shall be avoided, for example:
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+#define DEFINED defined
+#if DEFINED(X) // Non-compliant - undefined behaviour
+</pre>
+
+<p>
+<b>Developer's Note:</b>
+</p>
+
+<p>
+This check will trigger a violation where a macro is defined as the 'defined' preprocessor operator instead of where the macro is used.
+This is done to prevent an excessive number of violations for a macro that is used multiple times.
+</p>
+'''
+
+
+def test_language(language):
+	return language == 'C++'
+
+
+def test_entity(file):
+	return file.kind().check('header file, code file')
+
+
+def test_global():
+	return False
+
+
+# This function takes a MACRO reference and returns that entities base MACRO type
+def getBaseMacroType(macro):
+
+	# Pull parameter and make temporary copy
+	baseMacro = macro
+	seen = {}
+	seen[baseMacro.ent().id()] = True
+
+	# Keep pulling parent MACRO definition until we find the base MACRO
+	while baseMacro.ent().ref('C Use Macrodefine'):
+		baseMacro = baseMacro.ent().ref('C Use Macrodefine')
+		if baseMacro.ent().id() in seen:
+			return baseMacro
+		seen[baseMacro.ent().id()] = True
+
+	# Return the base MACRO back
+	return baseMacro
+
+
+# This function examines the usage of defined for compliance
+def checkDefined(file, check, lexeme):
+
+	# Pull argument and move foreward one
+	lexeme = lexeme.next(ignore_whitespace=True, ignore_comments=True)
+	if lexeme.text() == '(':
+		lexeme = lexeme.next(ignore_whitespace=True, ignore_comments=True)
+
+	prevUseful = lexeme.previous(ignore_whitespace=True, ignore_comments=True).text()
+	nextUseful = lexeme.next(ignore_whitespace=True, ignore_comments=True).text()
+	if (prevUseful == '(' and nextUseful == ')') or (prevUseful == 'defined' and lexeme.token() == 'Identifier'):
+		return
+	
+	check.violation(file, file, lexeme.line_begin(), lexeme.column_begin(), ERR1)
+
+
+def check(check, file):
+
+	# Pull all MACROs defined in this file and check to see if they're use improperly
+	macrosDefined = file.filerefs('Define', 'Macro', True)
+	for macro in macrosDefined:
+		baseMacro = getBaseMacroType(macro)
+		if baseMacro.ent().type() == 'defined':
+			# for violation in macro.ent().refs('Useby, Macrodefine'):
+				# check.violation(violation.scope(), violation.file(), violation.line(), violation.column(), ERR2)
+			if baseMacro.ent().refs('Useby, Macrodefine'):
+				definition = baseMacro.ent().refs('Definein')[0]
+				check.violation(definition.scope(), definition.file(), definition.line(), definition.column(), str(definition.kind().longname()))
+	
+	# This check requires use of the Understand lexer. Initialize and check for failure
+	lexer = file.lexer()
+	if not lexer:
+		return
+	
+	# $lexeme is intialized as the first element returned from the lexer
+	lexeme = lexer.first()
+
+	# While the lexer has lexemes ...
+	while lexeme:
+
+		if lexeme.token() == 'Preprocessor' and lexeme.text() == 'defined':
+			checkDefined(file, check, lexeme)
+		
+		lexeme = lexeme.next(ignore_whitespace=True, ignore_comments=True)

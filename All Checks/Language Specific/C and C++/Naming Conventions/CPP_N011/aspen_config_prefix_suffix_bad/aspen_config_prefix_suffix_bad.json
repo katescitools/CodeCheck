@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "Variableprefix": "!prefix",
+                "Variablesuffix": "!suffix"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Prefix and Suffix - Bad",
+    "parents": [
+    ]
+}

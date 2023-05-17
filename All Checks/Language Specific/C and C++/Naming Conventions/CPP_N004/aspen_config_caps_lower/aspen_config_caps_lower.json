@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N004",
+            "options": {
+                "FunctioncapOpt": "lowerCamelCase"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Capitalization - lowerCamelCase",
+    "parents": [
+    ]
+}

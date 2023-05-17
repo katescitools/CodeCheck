@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_L005",
+            "options": {
+                "atollNotAllowed": true,
+                "oneViolation": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "new",
+    "parents": [
+    ]
+}
+

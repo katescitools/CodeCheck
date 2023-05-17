@@ -1,0 +1,136 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 10/08/21
+
+import re
+from collections import defaultdict
+
+ERR1 = 'Unreachable Code'
+
+# The ID for the check
+def ids():
+    return ('RECOMMENDED_12')
+
+# The short name of the check
+def name(id):
+    return {
+        'RECOMMENDED_12': 'SciTools\' Recommended Checks/Unreachable Code',
+    }[id]
+
+# The short description of the check
+def description():
+    return 'Source will not contain Unreachable Code'
+
+# The long description of the check
+def detailed_description(id):
+    return {
+        'RECOMMENDED_12': """\
+<p><b>Rationale</b></p>
+<p>Verify that source code does not contain unreachable code. It only returns
+the first instance of unreachable code in each function/method. This check
+identifies code that will never be reached due to flow issues, such as the
+code after a 'goto' or 'return' statement. It doesn't actually consider the
+values inside of the conditional statements since those frequently change at
+runtime.</p>""",
+    }[id]
+
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('file ~dll')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language in {'Ada', 'C++', 'C#', 'Fortran', 'Java', 'Jovial', 'Pascal', 'Plm', 'Python', 'VHDL', 'Web'}
+
+def check(check, file):
+    funcRefs = file.filerefs("definein, body declarein", "c function ~unknown ~unresolved" +
+            ",java method ~abstract" +
+            ",fortran subroutine, fortran function, fortran main program ~unknown ~unresolved" +
+            ",c# method ~abstract" +
+            ",vhdl procedure, vhdl function" +
+            ",web function, web method" +
+            ",ada procedure, ada function, ada task", True)
+
+
+
+
+    for funcRef in funcRefs:
+        func = funcRef.ent()
+        if not func.control_flow_graph():
+            continue
+
+        cfg = func.control_flow_graph()
+
+        # Connect nodes
+        start = cfg.start()
+        end = start.end_node()
+        nodes = cfg.nodes()
+        nodeDict = {}
+        for node in nodes:
+            nodeDict[node] = [False, False, []]
+            children = node.children()
+            for child in children:
+                if not child in nodeDict.keys():
+                    nodeDict[child] = [False, False, []]
+
+                nodeDict[child][2].append(1)
+
+
+        try:
+            traverse(start, nodeDict)
+            filter(nodes, nodeDict, start, end)
+            collapse(nodes, nodeDict)
+        except:
+            return
+
+
+        for node in nodes:
+            if node == end:
+                continue
+            if not (nodeDict[node][0] or nodeDict[node][1]):
+                try:
+                    check.violation(func, file, node.line_begin(), node.column_begin(), ERR1)
+                except:
+                    check.violation(func, file, 0, 0, ERR1)
+                
+                break
+
+
+
+# mark children reachable from node as 'reachable'
+def traverse(node, nodeDict):
+    toVisit = [node]
+    while toVisit:
+        n = toVisit.pop(0)
+        if not nodeDict[n][0]:
+            nodeDict[n][0] = True
+            toVisit.extend(n.children())
+
+    return node, nodeDict
+
+
+# mark implicit nodes as 'filtered'
+def filter(nodes, nodeDict, start, end):
+    for node in nodes:
+        kind = node.kind()
+        if (kind == 'block-begin' and node['children'] <= 1) or kind in ['do-while','end-case','else','end-if','loop','end-loop','end-switch','end-block','end-try','repeat-until','end-with-do']:
+            nodeDict[node][1] = True
+
+
+    return nodes, nodeDict
+            
+
+
+# collapse node into parent and mark as 'filtered'
+def collapse(nodes, nodeDict):
+    for node in nodes:
+        if len(node.children()) == 1:
+            kind = node.kind()
+            child = node.children()[0]
+            if kind == 'passive' and node.children()[0].kind() == 'passive' and len(nodeDict[node.children()[0]][2]) == 1:
+                nodeDict[node.children()[0]][1] = True
+
+    return nodes

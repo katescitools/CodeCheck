@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N002",
+            "options": {
+                "EnumcharSet": "All Characters"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Character Set - All",
+    "parents": [
+    ]
+}

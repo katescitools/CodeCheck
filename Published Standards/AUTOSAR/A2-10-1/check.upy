@@ -1,0 +1,408 @@
+import re
+
+ERR1 = 'Identifier declared in an inner scope hides an identifier declared in an outer scope'
+
+def ids():
+    return ('A2-10-1', 'CPP_I017', 'MISRA08_2-10-2', 'MISRA12_5.3')
+
+def name(id):
+    return {
+        'A2-10-1': 'Published Standards/AUTOSAR/An identifier declared in an inner scope shall not hide an identifier declared in an outer scope',
+        'CPP_I017': 'All Checks/Language Specific/C and C++/Identifiers/No Scope Hiding',
+        'MISRA08_2-10-2': 'Published Standards/MISRA-C++ 2008/2-10-2 An identifier declared in an inner scope shall not hide an identifier declared in an outer scope',
+        'MISRA12_5.3': 'Published Standards/MISRA C 2012/5.3 An identifier declared in an inner scope shall not hide an identifier declared in an outer scope',
+    }[id]
+
+def description():
+    return 'An identifier declared in an inner scope shall not hide an identifier declared in an outer scope.'
+
+def detailed_description(id):
+  return {
+      'A2-10-1': '''\
+<p><b>Rationale</b><br>
+If an identifier is declared in an inner scope and it uses the same name as an identifier that already exists in an outer scope, then the innermost declaration will "hide" the outer one. This may lead to developer confusion. The terms outer and inner scope are defined as follows:
+</p>
+
+<p>
+ • Identifiers that have file scope can be considered as having the outermost scope.<br>
+ • Identifiers that have block scope have a more inner scope.<br>
+ • Successive, nested blocks, introduce more inner scopes.
+</p>
+
+<p>
+Note that declaring identifiers in different named namespaces, classes, structs or enum classes will not hide other identifiers from outer scope, because they can be accessed using fully-qualified id.
+</p>
+
+<p><b>Exception</b><br>
+An identifier declared within a namespace using the same name as an identifier of the containing namespace does not violate the rule.
+</p>
+
+<p>
+An identifier declared locally inside a lambda expression and not referring to a name of a captured variable does not violate the rule.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+//% $Id: A2-10-1.cpp 313834 2018-03-27 11:35:19Z michal.szczepankiewicz $
+#include <cstdint>
+std::int32_t sum = 0;
+namespace
+{
+    std::int32_t sum; // Non-compliant, hides sum in outer scope
+}
+class C1
+{
+    std::int32_t sum; // Compliant, does not hide sum in outer scope
+};
+namespace n1
+{
+    std::int32_t sum; // Compliant, does not hide sum in outer scope
+    namespace n2
+    {
+        std::int32_t sum; // Compliant, does not hide sum in outer scope
+    }
+}
+
+std::int32_t idx;
+void F1(std::int32_t idx)
+{
+    //Non-compliant, hides idx in outer scope
+}
+
+void F2()
+{
+    std::int32_t max = 5;
+
+    for (std::int32_t idx = 0; idx < max;
+    ++idx) // Non-compliant, hides idx in outer scope
+    {
+        for (std::int32_t idx = 0; idx < max;
+        ++idx) // Non-compliant, hides idx in outer scope
+        {
+        }
+    }
+}
+void F3()
+{
+    std::int32_t i = 0;
+    std::int32_t j = 0;
+    auto lambda = [i]() {
+        std::int32_t j =
+        10; // Compliant - j was not captured, so it does not hide
+            // j in outer scope
+        return i + j;
+    };
+}
+</pre>
+
+<p><b>See also</b><br>
+ • MISRA C++ 2008 [7]: required 2-10-2 Identifiers declared in an inner scope shall not hide an identifier declared in an outer scope.<br>
+ • JSF December 2005 [8]: 4.15 AV Rule 135 Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier.<br>
+ • HIC++ v4.0 [9]: 3.1.1 Do not hide declarations.
+</p>
+''',
+      'CPP_I017': '''\
+<p><b>Rationale</b><br>
+If an identifier is declared in an inner scope and it uses the same name as an identifier that already exists in an outer scope, then the innermost declaration will "hide" the outer one. This may lead to developer confusion. The terms outer and inner scope are defined as follows:
+</p>
+
+<p>
+ • Identifiers that have file scope can be considered as having the outermost scope.<br>
+ • Identifiers that have block scope have a more inner scope.<br>
+ • Successive, nested blocks, introduce more inner scopes.
+</p>
+
+<p>
+Note that declaring identifiers in different named namespaces, classes, structs or enum classes will not hide other identifiers from outer scope, because they can be accessed using fully-qualified id.
+</p>
+
+<p><b>Exception</b><br>
+An identifier declared within a namespace using the same name as an identifier of the containing namespace does not violate the rule.
+</p>
+
+<p>
+An identifier declared locally inside a lambda expression and not referring to a name of a captured variable does not violate the rule.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+//% $Id: A2-10-1.cpp 313834 2018-03-27 11:35:19Z michal.szczepankiewicz $
+#include <cstdint>
+std::int32_t sum = 0;
+namespace
+{
+    std::int32_t sum; // Non-compliant, hides sum in outer scope
+}
+class C1
+{
+    std::int32_t sum; // Compliant, does not hide sum in outer scope
+};
+namespace n1
+{
+    std::int32_t sum; // Compliant, does not hide sum in outer scope
+    namespace n2
+    {
+        std::int32_t sum; // Compliant, does not hide sum in outer scope
+    }
+}
+
+std::int32_t idx;
+void F1(std::int32_t idx)
+{
+    //Non-compliant, hides idx in outer scope
+}
+
+void F2()
+{
+    std::int32_t max = 5;
+
+    for (std::int32_t idx = 0; idx < max;
+    ++idx) // Non-compliant, hides idx in outer scope
+    {
+        for (std::int32_t idx = 0; idx < max;
+        ++idx) // Non-compliant, hides idx in outer scope
+        {
+        }
+    }
+}
+void F3()
+{
+    std::int32_t i = 0;
+    std::int32_t j = 0;
+    auto lambda = [i]() {
+        std::int32_t j =
+        10; // Compliant - j was not captured, so it does not hide
+            // j in outer scope
+        return i + j;
+    };
+}
+</pre>
+
+<p><b>See also</b><br>
+ • MISRA C++ 2008 [7]: required 2-10-2 Identifiers declared in an inner scope shall not hide an identifier declared in an outer scope.<br>
+ • JSF December 2005 [8]: 4.15 AV Rule 135 Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier.<br>
+ • HIC++ v4.0 [9]: 3.1.1 Do not hide declarations.
+</p>
+''',
+      'MISRA08_2-10-2': '''\
+<p><b>Rationale</b><br>
+If an identifier is declared in an inner scope and it uses the same name as an identifier that already exists in an outer scope, then the innermost declaration will "hide" the outer one. This may lead to developer confusion.
+</p>
+
+<p>
+The terms outer and inner scope are defined as follows:<br>
+ • Identifiers that have file scope can be considered as having the outermost scope.<br>
+ • Identifiers that have block scope have a more inner scope.<br>
+ • Successive, nested blocks, introduce more inner scopes.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+int16_t i;
+{
+    int16_t i; // This is a different variable
+               // This is Non-compliant
+    i = 3;     // It could be confusing as to which i this refers
+}
+void fn ( int16_t i ) // Non-compliant
+{
+}
+</pre>
+''',
+      'MISRA12_5.3': '''\
+<p><b>Amplification</b><br>
+An identifier declared in an inner scope shall be distinct from any identifier declared in an outer scope.
+</p>
+
+<p>
+The definition of distinct depends on the implementation and the version of the C language that is
+being used:
+</p>
+
+<p>
+• In C90 the minimum requirement is that the first 31 characters are significant;
+</p>
+
+<p>
+• In C99 the minimum requirement is that the first 63 characters are significant, with each
+universal character or extended source character counting as a single character.
+</p>
+
+<p><b>Rationale</b><br>
+If two identifiers differ only in non-significant characters, the behaviour is undefined.
+</p>
+
+<p>
+If an identifier is declared in an inner scope but is not distinct from an identifier that already exists in
+an outer scope, then the inner-most declaration will “hide” the outer one. This may lead to developer
+confusion.
+</p>
+
+<p>
+<i>Note</i>: An identifier declared in one name space does not hide an identifier declared in a different name
+space.
+</p>
+
+<p>
+The terms outer and inner scope are defi ned as follows:
+</p>
+
+<p>
+• Identifiers that have file scope can be considered as having the outermost scope;
+</p>
+
+<p>
+• Identifiers that have block scope have a more inner scope;
+</p>
+
+<p>
+• Successive, nested blocks, introduce more inner scopes.
+</p>
+
+<p><b>Example</b><br>
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  void fn1 ( void )
+  {
+    int16_t i;                            /* Declare an object "i" */
+    {
+      int16_t i;                          /* Non-compliant - hides previous "i " */
+      i = 3;                              /* Could be confusing as to which "i" this refers */
+    }
+  }
+
+  struct astruct
+  {
+    int16_t m;
+  };
+
+  extern void g ( struct astruct *p );
+
+  int16_t xyz = 0; /* Declare an object "xyz" */
+
+  void fn2 ( struct astruct xyz )         /* Non-compliant - outer "xyz" is
+                                           * now hidden by parameter name */
+    {
+      g ( &xyz );
+    }
+
+  uint16_t speed;
+
+  void fn3 ( void )
+  {
+    typedef float32_t speed;              /* Non-compliant - type hides object */
+  }
+
+</pre>
+
+<p><b>See also</b><br>
+Rule 5.2, Rule 5.8
+</p>
+''',
+    }[id]
+
+def report_info(id):
+    return {
+            'A2-10-1': {
+                'Automation': 'Automated',
+                'Category': 'Required'
+            },
+            'MISRA12_5.3': {
+                'Category': 'Required'
+            },
+            'MISRA08_2-10-2': {
+                'Category': 'Required'
+            }
+    }
+
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def is_same_entity(lex):
+    return (lex.ent().ref("Definein").line() == lex.line_begin()) and \
+        (lex.ent().ref("Definein").column() == lex.column_begin())
+
+def existing_ent(ent, valid_identifiers, check_parent):
+    # for non lambda with unnamed parent
+    if ent.parent() and ent.parent().name() == "[unnamed]" and ent.parent().kind().check("~Lambda ~Struct ~Enum ~Union ~Namespace"):
+        return True
+    # for lambda and inner object definitions
+    elif ent.parent() and ent.parent().kind().check("Lambda"):
+        for inner in ent.parent().ents("Capture"):
+            if inner.name() == ent.name():
+                return True
+    # for unnamed namespace
+    elif ent.parent() and ent.parent().name() == "[unnamed]" and ent.parent().kindname() == "Namespace":
+        return True
+    else:
+        if ent.kind().check("Parameter"):
+            check_parent = False
+        for record in valid_identifiers:
+            if str(ent.name()) == str(record.name()):
+                if check_parent:
+                    if ent.parent() and ent.parent().name() == "[unnamed]" and ent.parent().kind().check("Struct,Enum,Union"):
+                        container = ent.parent().ref("Typedby").ent()
+                        if str(ent.parent()) == str(container.name()):
+                            return True
+                    else:
+                        if str(ent.parent()) == str(record.parent()):
+                            return True
+                        elif ent.kindname() == "Typedef":
+                            return record
+                else:
+                    if record.parent() and record.parent().kind().check("File") and \
+                        record.parent().ref().file() == ent.parent().ref().file():
+                        return True
+                    else:
+                        continue
+    return False
+
+def process(lex, valid_identifiers, checked_identifiers, check, file):
+    check_parent = True
+    while lex:
+        # go outside a block
+        if lex.token() == "Punctuation" and lex.text() == "}":
+            if not check_parent:
+                check_parent = True
+            return lex
+        # go inside a block
+        elif lex.token() == "Punctuation" and lex.text() == "{":
+            lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+            lex = process(lex, valid_identifiers, checked_identifiers, check, file)
+            if not lex:
+                return
+        # for loop block flag
+        elif lex.token() == "Keyword" and lex.text() == "for":
+            check_parent = False
+        # identifier processing
+        elif lex.ent() and lex.token() == "Identifier":
+            if lex.ent().kind().check("Object,Parameter,Typedef ~TemplateParameter") and lex.ent().ref("Definein,Set"):
+                # check id current lex.ent is the variable initialization
+                if is_same_entity(lex) and not lex.ent().id() in checked_identifiers:
+                    # valid identifier goes to the list
+                    if not existing_ent(lex.ent(), valid_identifiers, check_parent):
+                        if not lex.ent().ref("Assign"):
+                            valid_identifiers.append(lex.ent())
+                    else:
+                        check.violation(lex.ent(), file, lex.line_begin(), lex.column_begin(), ERR1)
+                    checked_identifiers.append(lex.ent().id())
+        lex = lex.next(ignore_comments=True)
+    return lex
+
+def check(check, file):
+    lexer = file.lexer(True, 8, False, False)
+    lex = lexer.first()
+
+    valid_identifiers = []
+    checked_identifiers = []
+
+    # start process
+    process(lex, valid_identifiers, checked_identifiers, check, file)

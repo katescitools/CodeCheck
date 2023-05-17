@@ -1,0 +1,143 @@
+# This script is designed to run with Understand - CodeCheck
+# Converted to python by Jason Quinn
+# 12-21-22
+
+import re
+
+ERR1 = """\
+        Non unique typedef identifier %1 conflicts with entity %2 in file %3 on line %4
+"""
+
+DEF_NAME = """\
+        A typedef name shall be a unique identifier"""
+
+# The ID for the check
+def id():
+    return ('MISRA12_5.6')
+
+# Required - Return the short name of the check
+def name(id):
+    return {
+            'MISRA12_5.6': "Published Standards/MISRA C 2012/" + DEF_NAME,
+            }[id]
+
+
+    # The description of the check
+def detailed_description():
+    return """
+<p><b>Amplification</b></p>
+<p>A typedef name shall be unique across all name spaces and translation units.
+Multiple declarations of the same typedef name are only permitted by this rule
+if the type definition is made in a header file and that header file is included
+in multiple source files.</p>
+
+<p><b>Rationale</b></p>>
+<p>Reusing a typedef name either as another typedef name or as the name of a
+function, object or enumeration constant, may lead to developer confusion.</p>
+
+<p><b>Exception</b></p>>
+<p>The typedef name may be the same as the structure, union or enumeration tag
+name associated with the typedef.</p>
+
+<p><b>Example</b></p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  void func ( void )
+  {
+    {
+      typedef unsigned char u8_t;
+    }
+    {
+      typedef unsigned char u8_t;   /* Non-compliant - reuse */
+    }
+  }
+
+  typedef float mass;
+
+  void func1 ( void )
+  {
+    float32_t mass = 0.0f;          /* Non-compliant - reuse */
+  }
+
+  typedef struct list
+  {
+    struct list *next;
+    uint16_t element;
+  } list;                           /* Compliant - exception */
+
+  typedef struct
+  {
+    struct chain
+    {
+      struct chain *list;
+      uint16_t element;
+    } s1;
+    uint16_t length;
+  } chain;                          /* Non-compliant - tag "chain" not
+                                     * associated with typedef */
+
+</pre>
+
+<p><b>See also</b></p>
+<p>Rule 5.7</p>"""
+
+def report_info(id):
+    return {
+            'MISRA12_5.6': {
+                'Category': 'Required'
+            },
+    }[id]
+
+def test_entity(file):
+    return False
+
+def test_global():
+    return True
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check):
+    typedefs = check.db().ents('Typedef')
+
+    patternsSeen = {}
+
+    for typedef in typedefs:
+        # Pull references
+        defineRefs = typedef.refs('Definein, Declarein')
+        if not defineRefs:
+            continue
+
+        # Throw violation if more than one define or declare
+        if len(defineRefs) > 1:
+            for defineRef in defineRefs[1:]:
+                check.violation(typedef, defineRefs[0].file(), defineRefs[0].line(), defineRefs[0].column(), ERR1, typedef.name(), defineRef.scope().name(), defineRef.file().name(), defineRef.line())
+
+        define = defineRefs[0]
+        if not define:
+            continue
+
+        # Throw violation if name has been seen
+        if define.scope().name() in patternsSeen.keys():
+            seenName = patternsSeen[define.scope().name()]
+            check.violation(typedef, define.file(), define.line(), define.column(), ERR1, typedef.name(), seenName.file().name(), seenName.line())
+
+        # Add name to seen dictionary
+        else:
+            patternsSeen[define.scope().name()] = define
+
+    everythingElse = check.db().ents('~Typedef')
+    for other in everythingElse:
+        define = other.ref('Definein, Declarein')
+        if not define:
+            continue
+
+        if define.scope().name() in patternsSeen.keys():
+            # Check if name is same as tag name
+            seenReference = patternsSeen[define.scope().name()]
+            typedReference = seenReference.scope().ref('Typed')
+            if typedReference and typedReference.ent().longname() == define.scope().longname():
+                continue
+
+            check.violation(other, define.file(), define.line(), define.column(), ERR1, other.name(), seenReference.scope().name(), seenReference.file().name(), seenReference.line())

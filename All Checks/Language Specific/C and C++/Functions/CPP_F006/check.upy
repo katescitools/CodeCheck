@@ -1,0 +1,89 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+
+import re
+
+ERR1 = 'Function reference not preceded by &'
+
+def ids():
+    return ('M8-4-4', 'MISRA08_8-4-4', 'CPP_F006')
+
+def name(id):
+    return {
+        'M8-4-4': 'Published Standards/AUTOSAR/A function identifier shall either be used to call the function or it shall be preceded by &.',
+        'MISRA08_8-4-4': 'Published Standards/MISRA-C++ 2008/8-4-4 A function identifier shall either be used to call the function or it shall be preceded by &',
+        'CPP_F006': 'All Checks/Language Specific/C and C++/Functions/A Function identifier shall either be used to call the function or it shall be preceded by &',
+    }[id]
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+<p>A function identifier can implicitly convert to a pointer to a function. In certain contexts this may
+result in a well-formed program, but which is contrary to developer expectations. For example, if
+the developer writes:</p>
+<p><code>if ( f )</code></p>
+<p>then it is not clear whether the intent is to test if the address of the function is NULL or if a call to
+the function <code>f()</code> should be made and the brackets have been unintentionally omitted. The use of
+the <code>&</code> (address-of) operator will resolve this ambiguity.</p>
+<p><b>Exception</b></p>
+<p>Passing the function by reference, or assigning it to a reference object is not a violation of this rule.</p>
+<p><b>Example</b></p>
+<pre>
+extern void f ( void );
+if ( 0 == f ) // Non-compliant
+{
+    // ...
+}
+void (*p)( void ) = f; // Non-compliant
+if ( 0 == &f ) // Compliant
+{
+    (f)(); // Compliant as function is called
+}
+void (*p)( void ) = &f; // Compliant
+</pre>
+'''
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    for lexeme in file.lexer().lexemes():
+        token = lexeme.token()
+        ref = lexeme.ref()
+        ent = lexeme.ent()
+        if ref:
+            refKind = ref.kind().longname()
+            entKind = ent.kind().name()
+            if 'Use' in refKind and 'Ptr' in refKind and 'Function' in entKind:
+                violation = False
+                previous = lexeme.previous()
+                while True:
+                    if previous == None:
+                        violation = True
+                        break
+
+                    text = previous.text()
+                    token = previous.token()
+
+                    # Violation: Pointer is used by operator
+                    if text not in {'&', '::', '(', '<', '>'} and token == 'Operator':
+                        violation = True
+                        break
+                    # Violation: Pointer is used as a first argument
+                    if text == '(' and previous.previous().token() == 'Identifier':
+                        violation = True
+                        break
+                    # Good: Pointer is preceded by &
+                    if text == '&':
+                        break
+
+                    previous = previous.previous()
+
+                if violation:
+                    check.violation(ent, file, ref.line(), ref.column(), ERR1)

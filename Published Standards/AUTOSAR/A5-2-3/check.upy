@@ -1,0 +1,167 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 11-5-21
+
+
+import re
+
+
+ERR1 = 'Cast removed const qualification from %1'
+ERR2 = 'Cast removed volatile qualification from %1'
+
+
+def ids():
+    return ('A5-2-3', 'CPP_T021', 'MISRA08_5-2-5', 'MISRA12_11.8')
+
+
+def name(id):
+    return {
+        'A5-2-3': 'Published Standards/AUTOSAR/A cast shall not remove any const or volatile qualification from the type of a pointer or reference',
+        'CPP_T021': 'All Checks/Language Specific/C and C++/Types/A cast shall not remove any const or volatile qualification from the type of a pointer or reference',
+        'MISRA08_5-2-5': 'Published Standards/MISRA-C++ 2008/5-2-5 A cast shall not remove any const or volatile qualification from the type of a pointer or reference',
+        'MISRA12_11.8': 'Published Standards/MISRA C 2012/11.8 A cast shall not remove any const or volatile qualification from the type pointed to by a pointer',
+    }[id]
+
+
+def detailed_description():
+    return '''\
+
+<p><b>Rationale</b><br>
+Removal of the const or volatile qualification may not meet developer expectations as it may lead to undefined behavior.
+</p>
+
+<p>
+Note that either const_cast and traditional C-style casts that remove const or volatile qualification shall not be used.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+// $Id: A5-2-3.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+#include &lt;cstdint&gt;
+void F1(const char* str) noexcept(false)
+{
+    *(const_cast&lt;char*&gt;(str)) =
+    '\\0'; // Non-compliant - const qualification removed
+}
+class C
+{
+public:
+    explicit C(std::int32_t) {}
+};
+void F2() noexcept(false)
+{
+    C const a1 = C(10);
+    C* a2 = const_cast&lt;C*&gt;(&a1); // Non-compliant - const qualification removed
+    C* a3 = (C*)&a1;             // Non-compliant - const qualification removed
+}
+extern volatile std::int32_t* F3() noexcept;
+void F4() noexcept
+{
+    volatile std::int32_t* ptr1 = F3();
+    // ...
+    std::int32_t* ptr2 = const_cast&lt;std::int32_t*&gt;(
+    ptr1); // Non-compliant - volatile qualification removed
+    // ...
+    std::int32_t* ptr3 =
+    (std::int32_t*)ptr1; // Non-compliant - volatile qualification removed
+}
+</pre>
+
+<p><b>See also</b><br>
+• MISRA C++ 2008 [7]: 5-2-5 A cast shall not remove any const or volatile qualification from the type of a pointer or reference.
+</p>
+
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+def report_info(id):
+    return {
+        'A5-2-3': {
+            'Automation': 'Automated',
+            'Category':   'Required',
+        },
+        'MISRA08_5-2-5': {
+            'Category': 'Required',
+        },
+        'MISRA12_11.8': {
+            'Category': 'Required',
+        },
+    }[id]
+
+
+def check(check, file):
+
+    lexer = None
+
+    # cast on the right side of =
+    for toRef in file.filerefs('Assignby Ptr'):
+        toEnt = toRef.ent()
+        fromEnt = toRef.scope()
+
+        # Ignore any types that start with typeof (
+        if re.match('typeof \(.*', fromEnt.type()) or re.match('typeof \(.*', toEnt.type()):
+            continue
+
+        # const
+        removedConst = False
+        # const is removed from the beginning of the type
+        if re.match('^const.*', fromEnt.type()) and not re.match('^const.*', toEnt.type()):
+            removedConst = True
+        # *const is removed from the type
+        elif re.match('.*\*const', fromEnt.type()) and not re.match('.*\*const', toEnt.type()):
+            removedConst = True
+
+        # volatile is removed from the beginning or after const
+        removedVolatile = False
+        if re.match('^volatile .*', fromEnt.type()) or re.match('^const volatile .*', fromEnt.type()):
+            if not re.match('^volatile .*', toEnt.type()) and not re.match('^const volatile .*', toEnt.type()):
+                removedVolatile = True
+
+        # get the lexeme
+        if not lexer:
+            lexer = file.lexer()
+        lexeme = lexer.lexeme(toRef.line(), toRef.column())
+
+        # see if there was a cast
+        cast = False
+        while lexeme and lexeme.text() not in {';', '=', '{', ','}:
+            if lexeme.text() in {'static_cast', 'dynamic_cast', 'const_cast', 'reinterpret_cast', ')'}:
+                cast = True
+                break
+            lexeme = lexeme.previous(True, True)
+
+        if cast:
+            if removedConst:
+                check.violation(toEnt, file, toRef.line(), toRef.column(), ERR1, fromEnt.name())
+            if removedVolatile:
+                check.violation(toEnt, file, toRef.line(), toRef.column(), ERR2, fromEnt.name())
+
+    # cast on the left side of =
+    for ref in file.filerefs('Deref Set'):
+        ent = ref.ent()
+
+        # starts with const
+        if re.match('^const.*', str(ent.type())):
+
+            # get the lexeme
+            if not lexer:
+                lexer = file.lexer()
+            lexeme = lexer.lexeme(ref.line(), ref.column())
+
+            # see if there was a cast
+            while lexeme and lexeme.text() != ';':
+                if lexeme.text() in {'static_cast', 'dynamic_cast', 'const_cast', 'reinterpret_cast'}:
+                    check.violation(ent, file, ref.line(), ref.column(), ERR1, ent.name())
+                    break
+                lexeme = lexeme.previous(ignore_whitespace=True, ignore_comments=True)

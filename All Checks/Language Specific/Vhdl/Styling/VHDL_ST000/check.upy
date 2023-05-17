@@ -1,0 +1,53 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jordan Colbeth
+# 4-4-2023
+
+import re
+
+# The ID for the check
+def id():
+    return 'VHDL_ST000'
+
+# The short name of the check
+def name():
+    return "All Checks/Language Specific/Vhdl/Styling/VHDL_ST000" +  'Tabs shall not be used for indentation'
+
+# The short description of the check
+def description():
+    return 'Tabs shall not be used for indentation.'
+
+# The long description of the check
+def detailed_description():
+    return 'Tabs shall not be used for indentation.'
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('file')
+
+def test_global():
+    return False
+
+# Options for the check
+def define_options(check):
+    check.option().integer('indentation', 'Enter the number of spaces to replace per tab when using the fixit hint', 2)
+
+def test_language(language):
+    return language == 'VHDL'
+
+def check(check, file): 
+    if not re.search('\t', file.contents()):
+        return
+    if file and file.lexer():
+        lexer = file.lexer()
+    else:
+        return
+    lexeme = lexer.first()
+    indent = check.option().lookup('indentation')
+
+    while lexeme:
+        # Look for the use of tabs for indentation
+        if lexeme.token() == 'Whitespace' and re.search('\t', lexeme.text()) and lexeme.previous().token() == 'Newline':
+            violation = check.violation(file, file, lexeme.line_begin(), lexeme.column_begin(), 'Tab was used for indentation')
+            violation.add_fixit_hint(lexeme.line_begin(), lexeme.column_begin(), lexeme.line_begin(), lexeme.column_begin() + len(lexeme.text()), (len(lexeme.text()) * indent) * ' ')
+
+        lexeme = lexeme.next(ignore_comments=True);

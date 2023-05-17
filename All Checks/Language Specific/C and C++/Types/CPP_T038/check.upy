@@ -1,0 +1,98 @@
+import re
+
+typedefs = {'int', 'long', 'short', 'char'}
+ERR1 = 'Basic numerical type used instead of fixed width integer types from <cstdint>'
+
+# The ID for the check
+def ids():
+    return ('A3-9-1', 'CPP_T038')
+
+# The short name of the check
+def name(id):
+    return {
+        'A3-9-1': 'Published Standards/AUTOSAR/Fixed width integer types from &lt;cstdint&gt;, indicating the size and signedness, shall be used in place of the basic numerical types.',
+        'CPP_T038': 'All Checks/Language Specific/C and C++/Types/Fixed width integer types from &lt;cstdint&gt;, indicating the size and signedness, shall be used in place of the basic numerical types.',
+    }[id]
+
+# The long description of the check
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>The basic numerical types of char, int, short, long are not supposed to be used, specific-length types from <cstdint> header need be used instead.</p>
+
+<p>Fixed width integer types are:</p>
+
+<ul>
+<li>std::int8_t</li>
+<li>std::int16_t</li>
+<li>std::int32_t</li>
+<li>std::int64_t</li>
+<li>std::uint8_t</li>
+<li>std::uint16_t</li>
+<li>std::uint32_t</li>
+<li>std::uint64_t</li>
+</ul>
+
+<p><b>Exception</b></p>
+
+<p>The wchar_t does not need a typedef as it always maps to a type that supports wide characters.</p>
+
+<p><b>Example</b></p>
+
+<pre>
+//% $Id: A3-9-1.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+#include &lt;cstdint&gt;
+void F()
+{
+    std::int32_t i1 = 5;   // Compliant
+    int i2 = 10;           // Non-compliant
+    std::int64_t i3 = 250; // Compliant
+    long int i4 = 50;      // Non-compliant
+    std::int8_t i5 = 16;   // Compliant
+    char i6 = 23;          // Non-compliant
+}
+</pre>
+
+<p><b>See also</b></p>
+
+<p>MISRA C++ 2008 [7]: Rule 3-9-2 typedefs that indicate size and signedness should be used in place of the basic numerical types</p>
+'''
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+# get entity base type
+def get_base_type(ent):
+    if ent.ref("Typed") and ent.ref("Typed").ent():
+        return get_base_type(ent.ref("Typed").ent())
+    else:
+        return ent
+
+def check(check, file):
+
+    for ref in file.filerefs("Define", "~Unresolved ~Unknown ~Function ~Macro Object", True):
+        ent = ref.ent()
+        base_ent = get_base_type(ent)
+        proceed = False
+
+        for typedef in typedefs:
+            if typedef in str(base_ent.type()):
+                proceed = True
+
+        if proceed:
+            if not re.search('wchar_t$', str(base_ent.type())):
+                if re.search('[0-9]+_t$', str(base_ent)) or re.search('[0-9]+_t$', str(base_ent.type())):
+                    continue
+                else:
+                    check.violation(ent, file, ref.line(), ref.column(), ERR1)

@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N003",
+            "options": {
+                "FileRun": false,
+                "CodeRun": true,
+                "CodeconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Code",
+    "parents": [
+    ]
+}

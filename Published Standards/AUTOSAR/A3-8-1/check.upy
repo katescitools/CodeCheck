@@ -1,0 +1,131 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 11-03-2022
+def ids():
+    return ('A3-8-1', 'CPP_V042')
+
+def name(id):
+    return {
+        'A3-8-1': 'Published Standards/AUTOSAR/An object shall not be accessed outside of its lifetime',
+        'CPP_V042': 'All Checks/Language Specific/C and C++/Variables/An object shall not be accessed outside of its lifetime',
+    }[id]
+
+def detailed_description():
+    return """\
+<p><b>This check is automatically run</b></p>
+<p>This check is always run during the strict analysis, any violations will be reported as analysis errors.</p>
+<p><b>Rationale</b></p>
+<p>Accessing an object outside of its lifetime, i.e. before its initialization
+or constructor has completed, or after its non-trivial destructor has finished,
+is well defined only for a very restricted number of cases, as laid out by the
+language standard. Outside of these cases it leads to undefined behavior.</p>
+<p>Note: The AUTOSAR C++14 guidelines contain several other rules which are
+special cases of this rule (see references below). This rule was added to
+provide generic coverage for all cases not contained in these specialized rules.
+This also makes it easier to provide tracing from other standards with a similar
+generic rule.</p>
+<p>Note: The examples given below are not intended to represent a complete list of
+situations where violations of this rule can occur.</p>
+<p><b>Example</b></p>
+<pre>
+1  //% $Id: A3-8-1.cpp 305786 2018-01-30 08:58:33Z michal.szczepankiewicz $
+2
+3  //
+4  // 1. Pointer to virtual base is passed as function argument after lifetime of
+5  // object has ended.
+6  //
+7
+8  class B
+9  {
+10 };
+11
+12 class C1 : public virtual B // violates M10-1-1
+13 {
+14 };
+15
+16 class C2 : public virtual B // violates M10-1-1
+17 {
+18 };
+19
+20 class D : public C1, public C2
+21 {
+22 };
+23
+24 void f(B const* b){};
+25
+26 void example1()
+27 {
+28  D* d = new D(); // lifetime of d starts (violates A18-5-2)
+29  // Use d
+30  delete d; // lifetime of d ends (violates A18-5-2)
+31
+32  f(d); // Non-compliant - Undefined behavior, even if argument is not used
+33  // by f().
+34 }
+35
+36 //
+37 // 2. Accessing an initializer_list after lifetime of initializing array has
+38 // ended.
+39 //
+40 class E
+41 {
+42   std::initializer_list<int> lst;
+43
+44   public:
+45     // Conceptually, this works as if a temporary array {1, 2, 3} was created
+46     // and a reference to this array was passed to the initializer_list. The
+47     // lifetime of the temporary array ends when the constructor finishes.
+48     E() : lst{1, 2, 3} {}
+49
+50     int first() const { return *lst.begin(); }
+51 };
+52
+53 void example2()
+54 {
+55   E e;
+56   std::out << e.first() << "\n"; // Non-compliant
+57 }
+58
+59 //
+60 // 3. Exiting main while running tasks depend on static objects
+61 //
+62 void initialize_task()
+63 {
+64   // start some task (separate thread) which depends on some static object.
+65   // ...
+66 }
+67
+68 int main()
+69 {
+70   // static constructors are called
+71
+72   initialize_task();
+73 } // main ends, static destructors are called
+74
+75 // Non-compliant
+76 // Task begins to run and accesses destroyed static object.
+77
+78 //
+79 // 4. Storage reuse without explicit destructor call
+80 //
+81 void example4()
+82 {
+83   std::string str;
+84   new (&a) std::vector<int>{}; // Non-compliant: storage of str reused without
+85   // calling its non-trivial destructor.
+86 } // Non-compliant: Destructor of str is implicitly called at scope exit, but
+87 // storage contains object of different type.
+</pre>
+"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def noop_always():
+    return True
+
+def check(check, file):
+    pass

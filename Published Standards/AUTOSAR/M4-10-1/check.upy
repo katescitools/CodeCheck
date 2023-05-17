@@ -1,0 +1,134 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 1-13-22
+
+
+import re
+
+
+ERR1 = 'NULL used as assignment for type %1'
+ERR2 = 'NULL used as parameter for type %1'
+
+
+def ids():
+    return ('M4-10-1', 'MISRA08_4-10-1', 'CPP_T024')
+
+
+def name(id):
+    return {
+        'M4-10-1': 'Published Standards/AUTOSAR/NULL shall not be used as an integer value',
+        'MISRA08_4-10-1': 'Published Standards/MISRA-C++ 2008/4-10-1 NULL shall not be used as an integer value',
+        'CPP_T024': 'All Checks/Language Specific/C and C++/Types/NULL shall not be used as an integer value',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>
+In C++, the literal 0 is both an integer type and the <i>null-pointer-constant</i>. To meet developer expectations, <i>NULL</i> should be used as the <i>null-pointer-constant</i>, and 0 for the integer zero.
+</p>
+
+<p>
+Note: as a result of this rule, NULL is considered to have pointer type.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+#include &lt;cstddef&gt;
+void f1 ( int32_t );
+void f2 ( int32_t * );
+void f3 ( )
+{
+    f1 ( NULL );    // Not-compliant, NULL used as an integer
+    f2 ( NULL );    // Compliant
+}
+</pre>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+
+    intTypes = {'char', 'signed char', 'short', 'short int', 'signed short', 'signed short int', 'int', 'signed', 'signed int', 'long', 'long int', 'signed long', 'signed long int', 'long long', 'long long int', 'signed long long', 'signed long long int', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'int_fast8_t', 'int_fast16_t', 'int_fast32_t', 'int_fast64_t', 'int_least8_t', 'int_least16_t', 'int_least32_t', 'int_least64_t', 'unsigned char', 'unsigned short int', 'unsigned', 'unsigned int', 'unsigned long', 'unsigned long int', 'unsigned long long', 'unsigned long long int', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'uint_fast8_t', 'uint_fast16_t', 'uint_fast32_t', 'uint_fast64_t', 'uint_least8_t', 'uint_least16_t', 'uint_least32_t', 'uint_least64_t'}
+
+    lexer = None
+
+    # NULL used as an assignment
+    for ref in file.filerefs('Set', 'Object'):
+        ent = ref.ent()
+
+        # Ignore non-integral types
+        if ent.type() not in intTypes:
+            continue
+
+        # Ignore macros
+
+        # Ignore assignments to anything but NULL
+        if not lexer:
+            lexer = file.lexer()
+        lexeme = lexer.lexeme(ref.line(), ref.column())
+        lexeme = lexeme.next(True, True)
+        if lexeme.text() != '=':
+            continue
+        lexeme = lexeme.next(True, True)
+        if lexeme.text() != 'NULL':
+            continue
+
+        # check.violation(ent, file, ref.line(), ref.column(), ERR1, ent.type())
+        check.violation(ent, file, lexeme.line_begin(), lexeme.column_begin(), ERR1, ent.type())
+
+    # NULL used as a parameter
+    for func_ref in file.filerefs('Declare', 'Function'):
+        func_params = []
+
+        for param_ref in func_ref.ent().refs('', 'Parameter'):
+            if param_ref.ent().type() in intTypes:
+                func_params.append(True)
+            else:
+                func_params.append(False)
+
+        if any(func_params):
+            for call_ref in func_ref.ent().refs('Callby'):
+                lexer = call_ref.file().lexer()
+                lex = lexer.lexeme(call_ref.line(), call_ref.column())
+                in_param = 0
+                call_params = []
+                param = ''
+
+                if lex.ent() and lex.ent().kind().check('Macro'):
+                    continue
+
+                while lex and lex.text() != ';':
+                    if lex.text() == '(' and lex.token() == 'Punctuation':
+                        in_param += 1
+                    elif lex.text() == ')' and lex.token() == 'Punctuation':
+                        in_param -= 1
+
+                        if not in_param:
+                            call_params.append(param)
+                            break
+                    elif in_param and lex.text() != ',':
+                        param += lex.text()
+                    elif in_param and lex.text() == ',':
+                        call_params.append(param)
+                        param = ''
+
+                    lex = lex.next(True, True)
+
+                for ind, param in enumerate(call_params):
+                    if ind < len(func_params) and func_params[ind] and param == 'NULL':
+                        check.violation(call_ref.scope(), call_ref.file(), call_ref.line(), call_ref.column(), ERR2, param_ref.ent().type())

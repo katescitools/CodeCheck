@@ -1,0 +1,81 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 1-4-23
+
+
+import re
+
+
+def ids():
+    return ('MISRA04_19.11', 'CPP_P025')
+
+
+def name(id):
+    return {
+        'MISRA04_19.11': '''Published Standards/MISRA-C 2004/
+19.11 All macro identifiers in preprocessor directives shall be defined before
+use, except in #ifdef and #ifndef preprocessor directives and the defined()
+operator''',
+        'CPP_P025': '''All Checks/Language Specific/C and C++/Preprocessor/
+All macro identifiers in preprocessor directives shall be defined before use,
+except in #ifdef and #ifndef preprocessor directives and the defined()
+operator''',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+If an attempt is made to use an identifier in a preprocessor directive, and that
+identifier has not been defined, the preprocessor will sometimes not give any
+warning but will assume the value zero. <i>#ifdef</i>, <i>#ifndef</i> and
+<i>defined()</i> are provided to test the existence of a macro, and are
+therefore excluded.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+#if x &lt; 0 /* x assumed to be zero as it is not defined */
+</pre>
+
+<p>
+Consideration should be given to the use of a <i>#ifdef</i> test before an
+identifier is used.
+</p>
+
+<p>
+Note that preprocessing identifiers may be defined either by use of
+<i>#define</i> directives or by options specified at compiler invocation.
+However, the use of the <i>#define</i> directive is preferred.
+</p>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('Header File, Code File')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def report_info(id):
+    return {
+        'MISRA04_19.11': {
+            'Category': 'Required',
+        },
+    }[id]
+
+
+def noop_never():
+    return True
+
+
+def check(check, file):
+    pass

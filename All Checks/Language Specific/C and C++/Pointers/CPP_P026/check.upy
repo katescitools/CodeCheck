@@ -1,0 +1,185 @@
+# This script is designed to run with Understand - CodeCheck
+# Micah Morgan - 2/08/2022
+
+import re
+
+ERR1 = 'A cast shall not convert a pointer type to an integral type.'
+
+DEF_NAME = "A cast shall not convert a pointer type to an integral type."
+
+floatTypes = {'float', 'double', 'long double'}
+integralTypes = {'short', 'short int', 'signed short', 'signed short int', 'unsigned short int', 'int', 'signed', 'signed int', 'unsigned', 'unsigned int', 'long', 'long int', 'signed long', 'signed long int', 'unsigned long', 'unsigned long int', 'long long', 'long long int', 'signed long long', 'signed long long int', 'unsigned long long', 'unsigned long long int', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'int_fast8_t', 'int_fast16_t', 'int_fast32_t', 'int_fast64_t', 'int_least8_t', 'int_least16_t', 'int_least32_t', 'int_least64_t', 'intmax_t', 'intptr_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'uint_fast8_t', 'uint_fast16_t', 'uint_fast32_t', 'uint_fast64_t', 'uint_least8_t', 'uint_least16_t', 'uint_least32_t', 'uint_least64_t', 'uintmax_t', 'uintptr_t'}
+
+# The ID for the check
+def ids():
+    return ('M5-2-9', 'MISRA08_5-2-9', 'CPP_P051')
+
+# Required - Return the short name of the check
+def name(id):
+    return {
+        'M5-2-9': 'Published Standards/AUTOSAR/' + DEF_NAME,
+        'MISRA08_5-2-9': 'Published Standards/MISRA-C++ 2008/5-2-9 ' + DEF_NAME,
+        'CPP_P051': 'All Checks/Language Specific/C and C++/Pointers/' + DEF_NAME
+    }[id]
+
+# The short description of the check
+def description():
+    return DEF_NAME
+
+# The long description of the check
+def detailed_description():
+    return """ <b>Rationale</b>
+<p>The size of integer that is required when a pointer is converted to an integer is implementationdefined. Casting between a pointer and an integer type should be avoided where possible, but may
+be unavoidable when addressing memory mapped registers or other hardware specific features.
+Note that C++ does not permit a pointer to be converted to any floating type.</p>
+<b>Example</b>
+<br>
+<pre style="margin-top:0;padding-top:0;">
+struct S
+{
+ int32_t i;
+ int32_t j;
+};
+void f ( S * s )
+{
+ int32_t p = reinterpret_cast< int32_t >( s ); // Non-compliant
+}</pre>
+<br>
+<i>Author Notes: This check does not fine computed values such as a function call or anything containing operators. These are considered false negatives. E.g. (int)&x;</i>"""
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+# Options for the check
+def define_options(check):
+    pass
+
+#line, column, type, format
+def check(check, file):
+
+    lexer = file.lexer(show_inactive = False)
+    if not lexer:
+        return
+
+    
+    #get non standard casts
+    casts = []
+    for fileRef in file.filerefs("cast","~Function ~Unresolved ~Unknown ~Inactive"): #problem is here somehwere, iomap.c > linuxkernel
+        t = fileRef.ent().freetext("UnderlyingType")
+        n = fileRef.ent().name()
+        if (t in integralTypes or t in floatTypes) and (n not in integralTypes and n not in floatTypes):#our type is right
+            
+            #check for macros
+            lexeme =  lexer.lexeme(fileRef.line(),fileRef.column())
+            if "Macro" in lexeme.ent().kindname():
+                continue
+
+            lexeme = lexeme.next(True, True) # > or )
+
+            if lexeme.text() == ">":
+                lexeme = lexeme.next(True, True) #(
+            
+            casts.append( lexeme )
+
+    #get standard casts
+    primCasts = []
+    for type in integralTypes:
+        results = re.findall(rf'\(\s*{type}\s*\)', file.contents())
+        rResults = re.findall(rf'reinterpret_cast<\s*{type}\s*>', file.contents())
+
+        primCasts += results
+        primCasts += rResults
+    
+    pclp = get_lexer_pos_in_file(file, lexer, primCasts)
+    
+    #check and see if the identifier is of type pointer
+    for m in casts:
+        if check_is_fun_or_mac(m, check,file):
+            continue
+        (match, lexeme) = is_pointer_on_cast(m)
+        if match:
+            pass
+            pm( ERR1, check, lexeme.ent(), file, lexeme.line_begin(),  lexeme.column_begin())
+
+    for m in pclp:
+        if check_is_fun_or_mac(m, check, file):
+            continue
+        (match, lexeme) = is_pointer_on_cast(m)
+        if match:
+            pass
+            pm( ERR1, check, lexeme.ent(), file, lexeme.line_begin(),  lexeme.column_begin())
+    
+def check_is_fun_or_mac(lexeme, check, file):
+    if lexeme.text() == ")":
+        for i in range(3):
+            lexeme = lexeme.previous(True, True)
+            if lexeme is None:
+                return False
+        if lexeme.ent():
+            if "Function" in lexeme.ent().kindname() or "Macro" in lexeme.ent().kindname():
+                return True
+    return False
+
+def get_lexer_pos_in_file(file, lexer, items):
+
+    lexeme = lexer.first()
+
+    currentMatch = ""
+    positions = []
+    matches = 0
+    index = 0
+
+    while lexeme:
+        while lexeme.ent() and "Macro" in lexeme.ent().kindname():
+            currentMatch = ""
+            index = 0
+            lexeme = lexeme.next(False, True)
+
+        currentMatch += lexeme.text()
+        index += len(lexeme.text())
+        for m in items:
+            if m[:index] == currentMatch:
+                matches += 1
+                if index == len(m): #then its a match
+                    
+                    if lexeme.text() == ">":
+                       lexeme = lexeme.next(True, True) #(
+
+                    positions.append(lexeme)
+                    items.remove(m)
+                    matches = 0
+                    break
+        
+        if matches == 0:
+            currentMatch = ""
+            index = 0
+        
+        matches = 0
+        
+        lexeme = lexeme.next(False, True)
+
+        
+
+    return positions
+
+def is_pointer_on_cast(lexeme):
+    t = False
+    if lexeme.text() == "(":
+        t = True
+
+    lexeme = lexeme.next(True,True)#first item
+
+    if lexeme.token() == "Identifier" and lexeme.ent() is not None and re.match(r'.*\s*\*', str(lexeme.ent().type())):
+        if lexeme.next(True,True).text() == ";" or (t and lexeme.next(True,True).text() == ")"):
+            #match
+            return (True, lexeme)
+    return (False, None)
+
+
+def pm(s, check, ent = None, file = None, line=-1, col = -1):
+    check.violation(ent, file, line, col, str(s))

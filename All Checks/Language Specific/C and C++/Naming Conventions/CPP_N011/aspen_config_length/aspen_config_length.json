@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "VariableminLength": 2,
+                "VariablemaxLength": 3
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "length",
+    "parents": [
+    ]
+}

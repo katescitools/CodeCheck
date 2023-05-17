@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N002",
+            "options": {
+                "Enumprefix": "prefix",
+                "Enumsuffix": "suffix"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Prefix and Suffix - Required",
+    "parents": [
+    ]
+}

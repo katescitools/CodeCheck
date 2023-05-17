@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_DD014",
+            "options": {
+                "compatibleBasicTypes": true,
+                "violationForFirst": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "compatibleBasicTypes true",
+    "parents": [
+    ]
+}
+

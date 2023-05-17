@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N004",
+            "options": {
+                "FunctionRun": false,
+                "ProtectedRun": true,
+                "ProtectedconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Protected",
+    "parents": [
+    ]
+}

@@ -1,0 +1,102 @@
+ERR1 = 'Function returns a reference or a pointer of an automatic variable defined within the function.'
+
+
+# The ID for the check
+def ids():
+    return ('M7-5-1', 'MISRA08_7-5-1', 'CPP_F031')
+
+
+# The short name of the check
+def name(id):
+    return {
+        'M7-5-1': 'Published Standards/AUTOSAR/A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.',
+        'MISRA08_7-5-1': 'Published Standards/MISRA-C++ 2008/7-5-1 A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.',
+        'CPP_F031': 'All Checks/Language Specific/C and C++/Functions/A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.',
+    }[id]
+
+
+# The long description of the check
+def detailed_description():
+    return '''
+<p>
+A function shall not return a reference or a pointer to a non-static variable defined within the function.
+</p>
+
+<p><b>Rationale</b></p>
+
+<p>
+Automatic variables are destroyed at the end of the function call. Returning a reference or pointer to such a variable allows it to be used after its destruction, leading to undefined behaviour.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+int32_t * fn1 ( void )
+{
+    int32_t x = 99;
+    return ( &x );             // Non-compliant
+}
+int32_t * fn2 ( int32_t y )
+{
+    return ( &y );             // Non-compliant
+}
+int32_t & fn3 ( void )
+{
+    int32_t x = 99;
+    return ( x );              // Non-compliant
+}
+int32_t & fn4 ( int32_t y )
+{
+    return ( y );              // Non-compliant
+}
+int32_t * fn5 ( void )
+{
+    static int32_t x = 0;
+    return &x;                 // Compliant
+}
+</pre>
+'''
+
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    def check_violation(ref):
+        check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)
+
+    for func_ref in file.filerefs("Define", "Function"):
+        func_ent = func_ref.ent()
+        func_return = func_ent.ref("Return")
+        func_type = func_ent.type()
+
+        if not func_return or not func_type:
+            continue
+
+        if "*" in func_type:
+            for use_ref in func_ent.refs("Addr Use", "Object, Parameter"):
+                use_ent = use_ref.ent()
+                if (use_ent.parent() and (use_ent.parent().name() == func_ent.name())
+                    and not use_ent.kind().check("Static")
+                        and use_ref.line() == func_return.line()):
+                    check_violation(use_ref)
+
+        elif "&" in func_type:
+            for use_ref in func_ent.refs("Use", "Object, Parameter"):
+                use_ent = use_ref.ent()
+                if (use_ent.parent() and (use_ent.parent().name() == func_ent.name())
+                        and not use_ent.kind().check("Static")
+                        and "&" not in use_ent.type()
+                        and use_ent.type() in func_type
+                        and use_ref.line() == func_return.line()):
+                    check_violation(use_ref)

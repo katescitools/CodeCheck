@@ -1,0 +1,248 @@
+import re
+
+OUTERMOST = 1
+keywords = {"if","else if","else","case", "default"}
+returns = {"throw","return"}
+DEF_NAME = "All exit paths from a function with non-void return type shall have an explicit return statement with an expression."
+
+# The ID for the check
+def ids():
+    return ('A8-4-2', 'MISRA08_8-4-3', 'CPP_F033', 'MISRA04_16.8', 'MISRA12_17.4')
+
+# The short name of the check
+def name(id):
+    return {
+        'A8-4-2': 'Published Standards/AUTOSAR/All exit paths from a function with non-void return type shall have an explicit return statement with an expression.',
+        'MISRA08_8-4-3': 'Published Standards/MISRA-C++ 2008/8-4-3 All exit paths from a function with non-void return type shall have an explicit return statement with an expression.',
+        'CPP_F033': 'All Checks/Language Specific/C and C++/Functions/All exit paths from a function with non-void return type shall have an explicit return statement with an expression.',
+        'MISRA04_16.8': 'Published Standards/MISRA-C 2004/16.8 All exit paths from a function with non-void return type shall have an explicit return statement with an expression.',
+        'MISRA12_17.4': 'Published Standards/MISRA C 2012/17.4 All exit paths from a function with non-void return type shall have an explicit return statement with an expression',
+    }[id]
+
+# The long description of the check
+def detailed_description(id):
+    return {
+        'A8-4-2': '''
+<p>Always return a value in non-void functions.</p>
+
+<p><b>Rationale</b></p>
+
+<p>In a function with non-void return type, return expression gives the value that the function returns. The absence of a return with an expression leads to undefined behavior (and the compiler may not give an error).</p>
+
+<p><b>Exception</b></p>
+
+<p>A function may additionally exit due to exception handling (i.e. a throw statement).</p>
+
+<p><b>Example</b></p>
+
+<pre>
+// $Id: A8-4-2.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+#include &lt;cstdint&gt;
+#include &lt;stdexcept&gt;
+std::int32_t F1() noexcept // Non-compliant
+{
+}
+std::int32_t F2(std::int32_t x) noexcept(false)
+{
+if (x &gt; 100)
+    {
+        throw std::logic_error("Logic Error"); // Compliant by exception
+    }
+
+    return x; // Compliant
+}
+std::int32_t F3(std::int32_t x, std::int32_t y)
+{
+    if (x &gt; 100 || y &gt; 100)
+    {
+        throw std::logic_error("Logic Error"); // Compliant by exception
+    }
+    if (y &gt; x)
+    {
+        return (y - x); // Compliant
+    }
+    return (x - y); // Compliant
+}
+</pre>
+
+<p><b>See also</b></p>
+
+<p>MISRA C++ 2008 [7]: Rule 8-4-3 All exit paths from a function with non-void return type shall have an explicit return statement with an expression.</p>
+
+<p>SEI CERT C++ [10]: MSC52-CPP. Value-returning functions must return a value from all exit paths.</p>
+''',
+        'MISRA08_8-4-3': '''
+<p>Always return a value in non-void functions.</p>
+
+<p><b>Rationale</b></p>
+
+<p>This expression gives the value that the function returns. The absence of a <i>return</i> with an expression leads to <i>undefined behaviour</i> (and the compiler may not give an error).</p>
+
+<p><b>Exception</b></p>
+
+<p>This rule does not apply if a function exit is due to exception handling (i.e. a <i>throw</i> statement).</p>
+
+<p><b>Example</b></p>
+
+<pre>
+int32_t fn1 ( void )
+{
+} // Non-compliant
+int32_t fn3 ( int32_t x )
+{
+    if ( x &gt; 100 )
+    {
+        throw 42; // Compliant by exception
+    }
+    return ( x ); // Compliant
+}
+</pre>
+''',
+        'CPP_F033': '''
+<p>Always return a value in non-void functions.</p>
+
+<p><b>Rationale</b></p>
+
+<p>This expression gives the value that the function returns. The absence of a <i>return</i> with an expression leads to <i>undefined behaviour</i> (and the compiler may not give an error).</p>
+
+<p><b>Exception</b></p>
+
+<p>This rule does not apply if a function exit is due to exception handling (i.e. a <i>throw</i> statement).</p>
+
+<p><b>Example</b></p>
+
+<pre>
+int32_t fn1 ( void )
+{
+} // Non-compliant
+int32_t fn3 ( int32_t x )
+{
+    if ( x &gt; 100 )
+    {
+        throw 42; // Compliant by exception
+    }
+    return ( x ); // Compliant
+}
+</pre>
+''',
+        'MISRA04_16.8': '''
+<p>Always return a value in non-void functions.</p>
+
+<p>This expression gives the value that the function returns. The absence of a <i>return</i> with an expression leads to undefined behaviour (and the compiler may not give an error).</p>
+''',
+        'MISRA12_17.4': '''
+<p>Always return a value in non-void functions.</p>
+
+<p><b>Rationale</b></p>
+
+<p>
+The expression given to the <i>return</i> statement provides the value that the function returns. If a non-<i>void</i> function does not return a value but the calling function uses the returned value, the behaviour is undefined. This can be avoided by ensuring that, in a non-<i>void</i> function:
+</p>
+
+<p>
+• Every <i>return</i> statement has an expression, and
+</p>
+
+<p>
+• Control cannot reach the end of the function without encountering a <i>return</i> statement.
+</p>
+
+<p>
+<i>Note</i>: C99 constrains every <i>return</i> statement in a non-<i>void</i> function to return a value.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+int32_t absolute ( int32_t v )
+{
+  if ( v &lt; 0 )
+  {
+    return v;
+  }
+  /*
+   * Non-compliant - control can reach this point without
+   * returning a value
+   */
+}
+uint16_t lookup ( uint16_t v )
+{
+  if ( ( v &lt; V_MIN ) || ( v &gt; V_MAX ) )
+  {
+    /* Non-compliant - no value returned. Constraint in C99 */
+    return;
+  }
+  return table[ v ];
+}
+</pre>
+
+<p><b>See also</b></p>
+
+<p>
+Rule 15.5
+</p>
+''',
+    }[id]
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check_func(lex):
+    while lex and lex.text() != '{':
+        lex = lex.next()
+
+    exit_flag = 0
+    key_flag = 0 # set to 1, expected at least 1 return
+    ret_flag = 0
+    ret_outermost = False
+    catch_all_flag = False
+
+    while lex:
+        if lex.text() == '{' and lex.token() == "Punctuation":
+            exit_flag += 1
+        elif lex.text() == '}' and lex.token() == "Punctuation":
+            exit_flag -= 1
+        lex = lex.next()
+
+        if lex:
+            if lex.text() in keywords:
+                key_flag += 1
+            elif lex.text() in returns:
+                ret_flag += 1
+
+            if exit_flag == OUTERMOST and lex.text() == "return":
+                ret_outermost = True
+                ret_flag -= 1
+
+            if exit_flag == OUTERMOST and (lex.text() == "else" or lex.text() == "default"):
+                catch_all_flag = True
+
+            if exit_flag == 0 :
+                break
+
+    if not ret_outermost :
+        if catch_all_flag:
+            if key_flag == ret_flag and key_flag != 0 and ret_flag != 0:
+                return True
+            else:
+                return False
+        else:
+            return False
+    else:
+        return True
+
+def check(check, file):
+    lexer = file.lexer()
+    for ref in file.filerefs("Define","Function", True):
+        if not ref.ent().type() == "void" and not check_func(lexer.lexeme(ref.line(), ref.column())):
+            check.violation(ref.ent(), file, ref.line(), ref.column(), DEF_NAME)

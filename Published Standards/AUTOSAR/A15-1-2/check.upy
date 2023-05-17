@@ -1,0 +1,124 @@
+import re
+
+ADDRESS = "&"
+POINTER = "*"
+
+ERR1 = "Exception object is a pointer"
+
+# The ID for the check
+def ids():
+  return ('A15-1-2', 'CPP_E058')
+
+# The short name of the check
+def name(id):
+    return {
+        'A15-1-2': 'Published Standards/AUTOSAR/An exception object shall not be a pointer',
+        'CPP_E058': 'All Checks/Language Specific/C and C++/Exception Handling/An exception object shall not be a pointer',
+    }[id]
+
+# The long description of the check
+def detailed_description():
+  return """\
+<p><b>Rationale</b></p>
+<p>If an exception object of pointer type is thrown and that pointer refers to a dynamically created object, then it may be unclear which function is responsible for destroying it, and when. This may lead to memory leak.</p>
+<p>If an exception object of pointer type is thrown and that pointer refers to an automatic variable, it allows using a variable after its destruction, leading to undefined behavior.</p>
+<p>This ambiguity does not exist if a copy of the object is thrown.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 //% $Id: A15-1-2.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+2 #include <cstdint>
+3 class A
+4 {
+5 // Implementation
+6 };
+7 void Fn(std::int16_t i)
+8 {
+9 A a1;
+10 A& a2 = a1;
+11 A* a3 = new A;
+12
+13 if (i < 10)
+14 {
+15 throw a1; // Compliant - copyable object thrown
+16 }
+17
+18 else if (i < 20)
+19 {
+20 throw A(); // Compliant - copyable object thrown
+21 }
+22
+23 else if (i < 30)
+24 {
+25 throw a2; // Compliant - copyable object thrown
+26 }
+27
+28 else if (i < 40)
+29 {
+30 throw & a1; // Non-compliant - pointer type thrown
+31 }
+32
+33 else if (i < 50)
+34 {
+35 throw a3; // Non-compliant - pointer type thrown
+36 }
+37
+38 else if (i < 60)
+39 {
+40 throw(*a3); // Compliant - memory leak occurs, violates other rules
+41 }
+42
+43 else
+44 {
+45 throw new A; // Non-compliant - pointer type thrown
+46 }
+47 }
+</pre>
+<p><b>See also</b></p>
+<p>MISRA C++ 2008 [7]: 15-0-2 An exception object should not have pointer type.
+</p>
+<p>C++ Core Guidelines [11]: E.13: Never throw while being the direct owner of an object
+</p>"""
+
+def test_entity(file):
+  return file.kind().check('header file,code file')
+
+def test_global():
+  return False
+
+def test_language(language):
+  return language == 'C++'
+
+def check(check, file):
+
+  lexer = file.lexer()
+  lex = lexer.first()
+
+  while lex:
+    valid = True
+    if lex.text() == "throw" and lex.token() == "Keyword":
+
+      while not lex.ent() or (lex is None):
+        lex = lex.next(ignore_whitespace=True, ignore_comments=True)
+
+      if lex.ent():
+        if lex.ent().kind().check("Function"): # Function
+          if lex.previous(ignore_whitespace=True, ignore_comments=True).text() == "new":
+            valid = False
+        else: # Object
+          object = "" if lex.previous(ignore_whitespace=True, ignore_comments=True).text() == "throw" else lex.previous(ignore_whitespace=True, ignore_comments=True).text()
+          object += str(lex.ent().name())
+
+          if ADDRESS in str(lex.ent().type()):
+            if POINTER in object:
+              valid = False
+          elif POINTER in str(lex.ent().type()):
+            if not POINTER in object:
+              valid = False
+          else:
+            if ADDRESS in object:
+              valid = False
+
+    if not valid:
+      check.violation(lex.ent(), file, lex.line_begin(), lex.column_begin(), ERR1)
+
+    lex = lex.next()

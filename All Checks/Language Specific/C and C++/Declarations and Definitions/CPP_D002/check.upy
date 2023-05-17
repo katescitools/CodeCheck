@@ -1,0 +1,79 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 10-13-21
+
+
+import re
+
+
+ERR1 = 'Init-declarator-list contains more than one init-declarator: %1.'
+
+
+def ids():
+	return ('M8-0-1', 'MISRA08_8-0-1', 'CPP_D002')
+
+
+def name(id):
+	return {
+		'M8-0-1': 'Published Standards/AUTOSAR/An init-declarator-list or a member-declarator-list shall consist of a single init-declarator or member-declarator respectively.',
+		'MISRA08_8-0-1': 'Published Standards/MISRA-C++ 2008/8-0-1 An init-declarator-list or a member-declarator-list shall consist of a single init-declarator or member-declarator respectively.',
+		'CPP_D002': 'All Checks/Language Specific/C and C++/Declarations and Definitions/An init-declarator-list or a member-declarator-list shall consist of a single init-declarator or member-declarator respectively.',
+	}[id]
+
+
+def description():
+	return 'An init-declarator-list or a member-declarator-list shall consist of a single init-declarator or member-declarator respectively.'
+
+
+def detailed_description():
+	return '''
+<p>
+Only declare one object at a time per declaration statement.
+</p>
+
+<p><b>Rationale</b></p>
+
+<p>
+Where multiple declarators appear in the same declaration the type of an identifier may not meet developer expectations.
+</p>
+
+<p><b>Example</b></p>
+<pre>
+int32_t i1; int32_t j1; // Compliant
+int32_t i2, *j2;        // Non-compliant
+int32_t *i3, &j3 = i2;  // Non-compliant
+</pre>
+
+<p><b>See also</b></p>
+
+<p>
+ISO/IEC 14882:2003 [1] §9.2
+</p>
+
+'''
+
+
+def test_language(language):
+	return language == 'C++'
+
+
+def test_entity(file):
+	return True
+
+
+def test_global():
+	return False
+
+
+def check(check, file):
+
+	# Pull all objects references for defines
+	allRefs = file.filerefs('Define', 'Object ~TemplateParameter')
+
+	# Loop through each reference
+	for ref in allRefs:
+
+		# Spin up a lexer and text if the next token is a comma (,)
+		lexeme = file.lexer().lexeme(ref.line(), ref.column())
+		if lexeme and lexeme.next(ignore_whitespace=True, ignore_comments=True).text() == ',':
+			check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1, ref.ent().name())

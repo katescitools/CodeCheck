@@ -1,0 +1,149 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 2/10/21
+
+import re
+
+ERR1 = 'Unused Local Variable'
+ERR2 = 'Unused Parameter'
+
+
+# The ID for the check
+def ids():
+    return ('RECOMMENDED_14', 'CPP_V007', 'MISRA08_0-1-3', 'M0-1-3')
+
+# The short name of the check
+def name(id):
+    return {
+        'RECOMMENDED_14': 'SciTools\' Recommended Checks/Unused Local Variables',
+        'CPP_V007': 'All Checks/Language Specific/C and C++/Variables/Unused Local Variables',
+        'MISRA08_0-1-3': 'Published Standards/MISRA-C++ 2008/0-1-3 A project shall not contain unused variables',
+        'M0-1-3': 'Published Standards/AUTOSAR/A project shall not contain unused variables',
+    }[id]
+
+# The short description of the check
+def description():
+    return "Find Local Variables that are defined but not used."
+
+# The long description of the check
+def detailed_description(id):
+    return {
+        'RECOMMENDED_14': """\
+<p><b>Rationale</b></p>
+<p>Local variables that are defined but not used can lead to memory management
+issues as well as making code more difficult to follow. They can also be
+indicitive of an error where a programmer meant to use one variable and
+accidently used another. This check ignores references inside inactive code
+(ie #if 0...#endif).</p>""",
+        'CPP_V007': """\
+<p><b>Rationale</b></p>
+<p>Local variables that are defined but not used can lead to memory management 
+issues as well as making code more difficult to follow. They can also be 
+indicitive of an error where a programmer meant to use one variable and 
+accidently used another. This check ignores references inside inactive code 
+(ie #if 0...#endif).</p>""",
+        'MISRA08_0-1-3': """\
+<p><b>Rationale</b></p>
+<p>Variables declared and never used in a project constitute noise and may 
+indicate that the wrong variable name has been used somewhere. Removing these
+declarations reduces the possibility that they may later be used instead of 
+the correct variable. If padding is used within bit-fields, then the padding
+member should be unnamed to avoid violation of this rule.</p>
+<p>Check ignores references inside inactive code (ie #if 0...#endif).</p>
+<b>Example</b><pre style="margin-top:0;padding-top:0;">
+  extern void usefn ( int16_t a, int16_t b );
+  class C 
+  { 
+     ... 
+  };
+  C c;                         // UndCC_Violation - unused
+  void withunusedvar ( void ) 
+  { 
+     int16_t unusedvar;        // UndCC_Violation - unused
+     struct s_tag 
+     { 
+        signed int a   : 3; 
+        signed int pad : 1;    // UndCC_Violation - should be unnamed 
+        signed int b   : 2; 
+     } s_var;
+     s_var.a = 0; 
+     s_var.b = 0; 
+     usefn ( s_var.a, s_var.b ); 
+  }</pre>""",
+        'M0-1-3': """\
+<p><b>Rationale</b></p>
+<p>Variables declared and never used in a project constitute noise and may 
+indicate that the wrong variable name has been used somewhere. Removing these
+declarations reduces the possibility that they may later be used instead of 
+the correct variable. If padding is used within bit-fields, then the padding
+member should be unnamed to avoid violation of this rule.</p>
+<p>Check ignores references inside inactive code (ie #if 0...#endif).</p>
+<b>Example</b><pre style="margin-top:0;padding-top:0;">
+  extern void usefn ( int16_t a, int16_t b );
+  class C 
+  { 
+     ... 
+  };
+  C c;                         // UndCC_Violation - unused
+  void withunusedvar ( void ) 
+  { 
+     int16_t unusedvar;        // UndCC_Violation - unused
+     struct s_tag 
+     { 
+        signed int a   : 3; 
+        signed int pad : 1;    // UndCC_Violation - should be unnamed 
+        signed int b   : 2; 
+     } s_var;
+     s_var.a = 0; 
+     s_var.b = 0; 
+     usefn ( s_var.a, s_var.b ); 
+  }</pre>""",
+    }[id]
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def define_options(check):
+    check.option().checkbox("testParameters", 'Also test parameters', True)
+
+def check(check, file):
+    lexer = None
+    entrefs = []
+    if check.option().lookup("testParameters"):
+        entrefs = file.filerefs('define', 'object local ~member ~unknown ~unresolved, parameter ~unknown ~unresolved', True)
+    else:
+        entrefs = file.filerefs('define', 'object local ~member ~unknown ~unresolved', True)
+
+    for ref in entrefs:
+        if ref.ent().name() in ['...', '[unnamed]', '__range'] or ref.ent().refs("setby ~init, useby ~inactive, modifyby, callby"):
+            continue
+
+        if ref.ent().kind().check('Parameter'):
+            violation = check.violation(ref.ent(), ref.file(), ref.line(), ref.column(), ERR2)
+
+            if lexer == None:
+                lexer = file.lexer()
+            lexeme = lexer.lexeme(ref.line(), ref.column())
+            prevLex = lexeme
+
+            # Find beginning of parameter
+            while prevLex.previous() and prevLex.previous().text() != '(' and prevLex.text() != ',' and prevLex.previous().token() != 'Newline':
+                prevLex = prevLex.previous()
+            nextLex = lexeme
+
+            # Find end of parameter
+            while nextLex.next() and nextLex.next().text() != ')' and nextLex.text() != ',' and nextLex.next().token() != 'Newline':
+                nextLex = nextLex.next()
+
+            violation.add_fixit_hint(prevLex.line_begin(), prevLex.column_begin(), nextLex.line_end(), nextLex.column_end() + 1, '')
+
+        else:
+            violation = check.violation(ref.ent(), ref.file(), ref.line(), ref.column(), ERR1)
+            violation.add_fixit_hint(ref.line(), 0, ref.line() + 1, -1, '')

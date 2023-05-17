@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N011",
+            "options": {
+                "VariablecapOpt": "UpperCamelCase"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Capitalization - UpperCamelCase",
+    "parents": [
+    ]
+}

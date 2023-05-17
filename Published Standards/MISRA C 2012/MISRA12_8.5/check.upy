@@ -1,0 +1,95 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jordan Colbeth
+# 11-29-22
+
+import re
+
+ERR1 = "Object or function %1, has more than one declaration"
+
+# The ID for the check
+def ids():
+    return ('MISRA12_8.5')
+
+# The short name of the check
+def name(id):
+    return {
+        'MISRA12_8.5': 'Published Standards\\MISRA C 2012\\8.5 An external object or function shall be declared once in one and only one file',
+    }[id]
+
+# The short description of the check
+def description():
+    return """\
+8.5 (Global)( Required ) An external object or function shall be declared once in one and only one file."""
+
+# The long description of the check
+def detailed_description():
+    return """\
+<p><b>Amplification</b><br>
+This rule applies to non-defining declarations only.
+</p>
+
+<p><b>Rationale</b><br>
+Typically, a single declaration will be made in a <i>header file</i> that will be included in any translation unit in
+which the identifier is defined or used. This ensures consistency between:
+</p>
+
+<p>
+• The declaration and the definition;
+</p>
+
+<p>
+• Declarations in different translation units.
+</p>
+
+<p>
+<i>Note</i>: there may be many header files in a project, but each external object or function shall only be
+declared in one header file.
+</p>
+
+<p><b>Example</b><br>
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  /* featureX.h                         */
+  extern int16_t a;       /* Declare a  */
+
+  /* file.c                             */
+  #include "featureX.h"
+  int16_t a = 0;          /* Define a   */
+
+</pre>
+
+<p><b>See also</b><br>
+Rule 8.4
+</p>
+
+"""
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for 
+# project-level checks
+def test_global():
+    return True
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check):
+    db = check.db()
+	# Pull the check and file from calling function, return unless file
+    globalsDefined = db.ents('C Function ~Member, C Object Global ~Static')
+
+    if not globalsDefined:
+        return
+
+    # Loop through each global object
+    for global_ent in globalsDefined:
+        # Throw an error if we have more than one declare
+        declareRefs = global_ent.refs('C Declarein')
+        if ((0 + len(declareRefs)) > 1):
+            check.violation(global_ent, declareRefs[0].file(), declareRefs[0].line(), declareRefs[0].column(), ERR1, global_ent.name())

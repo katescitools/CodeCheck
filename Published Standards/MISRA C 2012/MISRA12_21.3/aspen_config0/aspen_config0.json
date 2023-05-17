@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "MISRA12_21.3",
+            "options": {
+                "oneViolation": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Not oneViolation",
+    "parents": [
+    ]
+}
+

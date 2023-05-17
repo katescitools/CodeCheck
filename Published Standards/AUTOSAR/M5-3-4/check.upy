@@ -1,0 +1,85 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 12-01-2021
+import re
+
+ERR1 = 'Potential side effects inside of sizeof operator'
+
+def ids():
+    return ('M5-3-4', 'MISRA08_5-3-4', 'CPP_E045')
+
+def name(id):
+    return {
+        'M5-3-4': 'Published Standards/AUTOSAR/Evaluation of the operand to the sizeof operator shall not contain side effects',
+        'MISRA08_5-3-4': 'Published Standards/MISRA-C++ 2008/5-3-4 Evaluation of the operand to the sizeof operator shall not contain side effects',
+        'CPP_E045': 'All Checks/Language Specific/C and C++/Expressions/Evaluation of the operand to the sizeof operator shall not contain side effects',
+    }[id]
+
+def detailed_description():
+    return """\
+<p><b>Rationale</b></p>
+<p>A possible programming error in C++ is to apply the sizeof operator to an
+expression and expect the expression to be evaluated. However, the expression is
+not evaluated as sizeof only acts on the type of the expression. To avoid this
+error, sizeof shall not be used on expressions that would contain side effects
+if they were used elsewhere, as the side effects will not occur.</p>
+<p><b>Exception</b></p>
+<p>An operand of the form sizeof ( i ) where i is volatile is permitted.</p>
+<p><b>Example</b></p>
+<pre>
+         int32_t i;
+         int32_t j;
+volatile int32_t k;
+j = sizeof( i = 1234 );     // Non-compliant - j is set to the sizeof the
+                            // type of i which is an int32_t.
+                            // i is not set to 1234.
+j = sizeof ( k );           // Compliant by exception.
+</pre>
+"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    if not re.search('sizeof', file.contents()):
+        return
+
+    lexer = file.lexer()
+
+    lexemes = lexer.lexemes()
+
+    for lexeme in lexemes:
+        if not lexeme.text() == 'sizeof':
+            continue
+
+        lexeme = lexeme.next(True, True)
+
+        if lexeme and lexeme.text() == '(':
+            close = findClose(lexeme)
+            if not close:
+                continue
+
+            while lexeme and not (lexeme.line_begin() == close.line_begin() and lexeme.column_begin() == close.column_begin()):
+                if re.search('=|\+\+|--|\+=|-=', lexeme.text()) or (lexeme.ent() and lexeme.ent().kindname() == 'Function'):
+
+                    check.violation(file, file, lexeme.line_begin(), lexeme.column_begin(), ERR1)
+
+                lexeme = lexeme.next(True, True)
+
+def findClose(lexeme):
+    count = 0
+
+    while lexeme and not (lexeme.text() == ')' and count == 0):
+        if lexeme.text() == '(':
+            count += 1
+
+        lexeme = lexeme.next(True, True)
+
+        if lexeme and lexeme.text() == ')':
+            count -= 1
+
+
+    return lexeme

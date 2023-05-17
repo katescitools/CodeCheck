@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N003",
+            "options": {
+                "FileminLength": 19,
+                "FilemaxLength": 20
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "length",
+    "parents": [
+    ]
+}

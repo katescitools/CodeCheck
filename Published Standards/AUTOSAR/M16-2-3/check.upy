@@ -1,0 +1,458 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Micah Morgan
+# 1-20-22
+
+import re
+
+ERR1 = 'Include guards not used in file'
+ERR2 = 'endif not last element of file'
+ERR3 = 'Macro used for include guard is not unique'
+ERR4 = 'Identifiers do not match'
+
+# The ID for the check
+def ids():
+    return ('M16-2-3', 'MISRA12_4.10', 'MISRA08_16-2-3', 'MISRA04_19.15', 'CPP_PR001')
+
+# Required - Return the short name of the check
+def name(id):
+    return {
+        'M16-2-3':'Published Standards/AUTOSAR/Include guards shall be provided',
+        'MISRA12_4.10':'Published Standards/MISRA C 2012/Directive 4.10 Precautions shall be taken in order to prevent the contents of a header file being included more than once',
+        'MISRA08_16-2-3':'Published Standards/MISRA-C++ 2008/16-2-3 Include guards shall be provided',
+        'MISRA04_19.15': 'Published Standards/MISRA-C 2004/19.15 Precautions shall be taken in order to prevent the contents of a header file being included twice',
+        'CPP_PR001': 'All Checks/Language Specific/C and C++/Preprocessor/Include guards shall be provided'
+    }[id]
+
+# The short description of the check
+def description(id):
+    return {
+        'M16-2-3':'Include guards shall be provided.',
+        'MISRA12_4.10':'Directive 4.10 Precautions shall be taken in order to prevent the contents of a header file being included more than once',
+        'MISRA08_16-2-3':'16-2-3 (Required) Include guards shall be provided.',
+        'MISRA04_19.15': '19.15 (Required) Precautions shall be taken in order to prevent the contents of a header file being included twice.',
+        'CPP_PR001': '(Required) Include guards shall be provided.'
+    }[id]
+
+
+def report_info(id):
+    return {
+        'M16-2-3': {
+            'Automation': 'Automated',
+            'Category':   'Required',
+        },
+        'MISRA04_19.15': {
+            'Category': 'Required',
+        },
+        'MISRA08_16-2-3': {
+            'Category': 'Required',
+        },
+        'MISRA12_4.10': {
+            'Category': 'Required',
+        },
+    }[id]
+
+# The long description of the check
+def detailed_description(id):
+    return {
+        'M16-2-3':"""<p>The <i>include guard</i> shall use one of the following two forms:</p>
+<pre style="margin-top:0padding-top:0">
+<start-of-file>
+// Comments allowed here
+#if !defined ( identifier )
+#define identifier
+ // Contents of file
+#endif
+<end-of-file>
+<start-of-file>
+// Comments allowed here
+#ifndef identifier
+#define identifier
+ // Contents of file
+#endif
+<end-of-file>
+</pre>
+<p><b>Rationale</b></p>
+<p>When a translation unit contains a complex hierarchy of nested <i>header files</i>, it is possible for a
+particular <i>header file</i> to be included more than once. This can be, at best, a source of confusion. If
+this multiple inclusion leads to multiple or conflicting definitions, then this can result in undefined
+or erroneous behaviour.</p>
+These forms are mandated to facilitate checking.
+Example
+<pre style="margin-top:0padding-top:0">
+// file.h
+#ifndef FILE_H
+#endif
+// file.cc
+#include "file.h"
+#define FILE_H // Non-compliant</pre>""",
+        'MISRA12_4.10':"""<p><b>Rationale</b><br>
+When a translation unit contains a complex hierarchy of nested header files, it is possible for a particular
+header file to be included more than once. This can be, at best, a source of confusion. If this multiple
+inclusion leads to multiple or conflicting definitions, then this can result in undefined or erroneous
+behaviour.
+</p>
+
+<p><b>Example</b><br>
+</p>
+
+<pre style="margin-top:0padding-top:0">
+
+  /* file.h */
+  #ifndef FILE_H
+  /* Non-co mpliant - does not #define FILE_H */
+  #endif
+
+</pre>
+
+<p>
+In order to facilitate checking, the contents of the header should be protected from being included
+more than once using one of the following two forms:
+</p>
+
+<pre style="margin-top:0padding-top:0">
+
+  <start-of-file>
+  #if !defined ( identifier )
+  #define identifier
+    /* Contents of file */
+  #endif
+  <end-of-file>
+
+  <start-of-file>
+  #ifndef identifier
+  #define identifier
+    /* Contents of file */
+  #endif
+  <end-of-file>
+
+</pre>
+
+<p>
+<i>Note</i>: the identifier used to test and record whether a given <i>header file</i> has already been included shall
+be unique across all <i>header files</i> in the project.
+</p>
+
+<p>
+<i>Note</i>: comments are permitted anywhere within these forms.
+</p>""",
+        'MISRA08_16-2-3':"""<p>
+The <i>include guard</i> shall use one of the following two forms:
+</p>
+
+<pre style="margin-top:0padding-top:0">
+
+  <start-of-file>
+  // Comments allowed here
+  #if !defined ( identifier )
+  #define identifier
+    // Contents of file
+  #endif
+  <end-of-file>
+
+  <start-of-file>
+  // Comments allowed here
+  #ifndef identifier
+  #define identifier
+    // Contents of file
+  #endif
+  <end-of-file>
+
+</pre>
+
+<p><b>Rationale</b><br>
+When a translation unit contains a complex hierarchy of nested <i>header files</i>, it is possible for a
+particular <i>header file</i> to be included more than once. This can be, at best, a source of confusion. If
+this multiple inclusion leads to multiple or conflicting definitions, then this can result in undefined
+or erroneous behaviour.
+</p>
+
+<p>
+These forms are mandated to facilitate checking.
+</p>
+
+<p><b>Example</b><br>
+</p>
+
+<pre style="margin-top:0padding-top:0">
+
+  // file.h
+  #ifndef FILE_H
+  #endif
+  
+  // file.cc
+  #include "file.h"
+  #define FILE_H      // Non-compliant
+
+</pre>""",
+    'MISRA04_19.15': """<p><b>Rationale</b><br>
+When a translation unit contains a complex hierarchy of nested header files it can happen that a
+particular header file is included more than once. This can be, at best, a source of confusion. If it
+leads to multiple or conflicting definitions, the result can be undefined or erroneous behaviour.
+</p>
+
+<p>
+Multiple inclusions of a header file can sometimes be avoided by careful design. If this is not
+possible, a mechanism must be in place to prevent the file contents from being included more than
+once. A common approach is to associate a macro with each file; the macro is defined when the
+file is included for the first time and used subsequently when the file is included again to exclude
+the contents of the file.
+</p>
+
+<p>For example a file called "ahdr.h" might be structured as follows:</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  #ifndef AHDR_H
+  #define AHDR_H
+    /* The following lines will be excluded by the
+       preprocessor if the file is included more
+       than once */
+    ...
+  #endif
+
+</pre>
+
+<p>Alternatively, the following may be used:</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  #ifdef AHDR_H
+  #error Header file is already included
+  #else
+  #define AHDR_H
+  /* The following lines will be excluded by the
+  preprocessor if the file is included more
+  than once */
+  ...
+  #endif
+
+</pre>""",
+    'CPP_PR001': """<p>
+The <i>include guard</i> shall use one of the following two forms:
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  <start-of-file>
+  // Comments allowed here
+  #if !defined ( identifier )
+  #define identifier
+    // Contents of file
+  #endif
+  <end-of-file>
+
+  <start-of-file>
+  // Comments allowed here
+  #ifndef identifier
+  #define identifier
+    // Contents of file
+  #endif
+  <end-of-file>
+
+</pre>
+
+<p><b>Rationale</b><br>
+When a translation unit contains a complex hierarchy of nested <i>header files</i>, it is possible for a
+particular <i>header file</i> to be included more than once. This can be, at best, a source of confusion. If
+this multiple inclusion leads to multiple or conflicting definitions, then this can result in undefined
+or erroneous behaviour.
+</p>
+
+<p>
+These forms are mandated to facilitate checking.
+</p>
+
+<p><b>Example</b><br>
+</p>
+
+<pre style="margin-top:0;padding-top:0;">
+
+  // file.h
+  #ifndef FILE_H
+  #endif
+
+  // file.cc
+  #include "file.h"
+  #define FILE_H      // Non-compliant
+
+</pre>"""
+    }[id]
+
+def test_entity(file):
+    return file.kind().check('header file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    # This check requires use of the Understand lexer. Initialize and check for failure 
+    lexer = file.lexer()
+    if not lexer:
+        return
+  
+    # lexeme is initialized as the first element returned from the lexer
+    lexeme = lexer.first()
+  
+    # Special case for an empty file
+    if not lexeme.next(True, True):
+        check.violation(lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR1)
+        return
+
+    # Move past all the white space and comments, test just in case no comments exist
+    if lexeme.text() != '#':
+        lexeme = lexeme.next(True, True)
+
+    # Move onto the start of the first macro
+    lexeme = lexeme.next(True, True)
+
+    dupeOne = includeGuard( lexeme, check )
+    dupeTwo = includeGuardAlt( lexeme, check )
+
+    # Test that the macro, if one exists, is unique
+    if dupeOne == 2 or dupeTwo == 2:
+        check.violation( lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR3 )
+        return
+
+    # Check for the approved forms of include guards
+    passed = (dupeOne == 1 or dupeTwo == 1)
+    if not passed:
+        #display correct violation if the id is missmatch
+        if dupeTwo == 3 or dupeOne == 3: 
+            check.violation( lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR4)
+        else:
+            check.violation( lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR1 )
+        return
+
+    # Check the end of the file for the second half of the include guard
+    endOfFile = False
+    finalLexeme = lexeme
+
+    # Walk through the file looking for an endif
+    while lexeme:
+        # If this is the last element of the file, set our flag
+        if lexeme.text() == 'endif' and lexeme.next(True, True) == None:
+            endOfFile = True
+        
+        finalLexeme = lexeme
+        lexeme = lexeme.next(True, True)
+    if not endOfFile:
+        check.violation( finalLexeme.ent(), file, finalLexeme.line_begin(), finalLexeme.column_begin(), ERR2 )
+
+# This subroutine checks for the ifndef include guard
+def includeGuard(lexeme, check):
+
+    if lexeme.text().lower() == 'if':
+
+        lexeme = lexeme.next(True, True)
+        if lexeme.text() != '!':
+            return 0
+        lexeme = lexeme.next(True, True)
+        if lexeme.text().lower() != 'defined':
+            return 0
+
+    elif lexeme.text().lower() == 'ifndef':
+        # Do nothing
+        pass
+
+    else:
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == '(':
+        lexeme = lexeme.next(True, True)
+
+    if lexeme.token() != 'Identifier':
+        return 0
+    #also remember the identifier to make sure it matches
+    identifier = lexeme.text()
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == ')':
+        lexeme = lexeme.next(True, True) 
+
+    if  lexeme.text() != '#':
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text().lower() != 'define':
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == '(':
+        lexeme = lexeme.next(True, True) 
+
+    if lexeme.token() != 'Identifier' or lexeme.text() != identifier:
+        return 3
+
+    # Test that the identifier is unique
+    possibleDups = check.db().lookup(re.compile(r'^' + identifier + r'$'))
+    if len(possibleDups) > 1:
+        return 2
+    return 1
+
+# This subroutine checks for the ifdef include guard
+def includeGuardAlt(lexeme, check):
+    if lexeme.text().lower() == 'if':
+
+        lexeme = lexeme.next(True, True)
+        if lexeme.text().lower() != 'defined':
+            return 0
+
+    elif lexeme.text().lower() == 'ifdef':
+        # Do nothing
+        pass
+
+    else:
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == '(':
+        lexeme = lexeme.next(True, True)
+
+    if lexeme.token() != 'Identifier':
+        return 0
+
+    #also remember the identifier to make sure it matches
+    identifier = lexeme.text()
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == ')':
+        lexeme = lexeme.next(True, True) 
+
+    if  lexeme.text() != '#':
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text().lower() != 'error':
+        return 0
+
+    while lexeme and lexeme.text() != 'else':
+        lexeme = lexeme.next(True, True)
+
+    if lexeme is None:
+        return 0
+
+    lexeme = lexeme.next(True, True)
+    if  lexeme.text() != '#':
+        return 0
+
+
+    lexeme = lexeme.next(True, True)
+    if lexeme.text().lower() != 'define':
+        return 0
+        
+    lexeme = lexeme.next(True, True)
+    if lexeme.text() == '(':
+        lexeme = lexeme.next(True, True) 
+
+    if lexeme.token() != 'Identifier' or lexeme.text() != identifier:
+        return 3
+    
+    # Test that the identifier is unique
+    possibleDups = check.db().lookup(re.compile(r'^' + identifier + r'$'))
+    if len(possibleDups) > 1:
+        return 2
+    return 1

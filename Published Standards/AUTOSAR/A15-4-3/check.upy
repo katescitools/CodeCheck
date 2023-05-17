@@ -1,0 +1,160 @@
+import re
+
+DEF_NAME = "The noexcept specification of a function shall either be identical across all translation units, or identical or more restrictive between a virtual member function and an overrider"
+
+# The ID for the check 
+def ids():
+    return ('A15-4-3', 'CPP_F050')
+
+def name(id):
+    return {
+        'A15-4-3': """\
+Published Standards/AUTOSAR/The noexcept specification of a function shall
+either be identical across all translation units, or identical or more
+restrictive between a virtual member function and an overrider""",
+        'CPP_F050': """\
+All Checks/Language Specific/C and C++/Functions/The noexcept specification of a
+function shall either be identical across all translation units, or identical or
+more restrictive between a virtual member function and an overrider"""
+
+    }[id]
+
+# The long description of the check
+def detailed_description():
+    return """\
+<p><b>Rationale</b></p>
+<p>Declarations of the same function, even in different translation units, have to specify the same noexcept specification. Overriding functions have to specify the same or a stricter noexcept specification than the base class function which they override.</p>
+<p>Note that in many cases, a violation of this rule will lead to a compilation error. This is not guaranteed, however, in particular when function declarations appear in separate translation units.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 //% $Id: A15-4-3.cpp 317753 2018-04-27 07:44:02Z jan.babst $
+2 // f1.hpp
+3 void Fn() noexcept;
+4
+5 // f1.cpp
+6 // #include <f1.hpp>
+7 void Fn() noexcept // Compliant
+8 {
+9 // Implementation
+10 }
+11
+12 // f2.cpp
+13 // #include <f1.hpp>
+14 void Fn() noexcept(false) // Non-compliant - different exception specifier
+15 {
+16 // Implementation
+17 }
+18
+19 class A
+20 {
+21 public:
+22 void F() noexcept;
+23 void G() noexcept(false);
+24 virtual void V1() noexcept = 0;
+25 virtual void V2() noexcept(false) = 0;
+26 };
+27 void A::F() noexcept // Compliant
+28 // void A::F() noexcept(false) // Non-compliant - different exception specifier
+29 // than in declaration
+30 {
+31 // Implementation
+32 }
+33 void A::G() noexcept(false) // Compliant
+34 // void A::G() noexcept // Non-compliant - different exception specifier than
+35 // in declaration
+36 {
+37 // Implementation
+38 }
+39 class B : public A
+40 {
+41 public:
+42 void V1() noexcept override // Compliant
+43 // void V1() noexcept(false) override // Non-compliant - less restrictive
+44 // exception specifier in derived method, non-compilable
+45 {
+46 // Implementation
+47 }
+48 void V2() noexcept override // Compliant - stricter noexcept specification
+49 {
+50 // Implementation
+51 }
+52 };
+</pre>
+<p><b>See also</b></p>
+<p>MISRA C++ 2008 [7]: 15-4-1: If a function is declared with an exceptionspecification, then all declarations of the same function (in other translation units) shall be declared with the same set of type-ids.
+</p>"""
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for 
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def get_mapping(val):
+    if val == "noexcept" or val == "noexcept(true)":
+        return 1
+    else:
+        return 2
+
+def get_function(file, line, column, db):
+    lexer = file.lexer(True, 8, False, False)  
+    lex = lexer.lexeme(line, column)
+
+    temp_val = ""
+    while lex and lex.text() not in ["{", ";", "="]:
+        if lex.token() != "Newline":
+            temp_val = temp_val + lex.text()
+        lex = lex.next(ignore_comments=True)
+    lexer = None
+    return temp_val
+
+def check(check, file):
+    for ref in file.filerefs("Define","Function", True):
+        lexer_file = file
+        start, l_operand, r_operand = "", "", ""
+        declare, uniquename = "", ""
+
+        declarein = ref.ent().ref("C Declarein")
+        if declarein == None and ref.ent().ref("C Overrides"):
+            declarein = ref.ent().ref("C Overrides").ent().ref("C Declarein")
+            if declarein.file().ref().kind().check("~Include"):
+                if declarein.file() != file:
+                    for record in check.db().lookup(str(declarein.file())):
+                        if record.relname() == declarein.file().relname():
+                            uniquename = record.uniquename()
+                        lexer_file = check.db().lookup_uniquename(uniquename)
+                declare = get_function(lexer_file, declarein.line(), declarein.column(), check.db())
+        else:
+            if declarein != None:
+                if declarein.file().ref().kind().check("~Include"):
+                    if declarein.file() != file:
+                        for record in check.db().lookup(str(declarein.file())):
+                            if record.relname() == declarein.file().relname():
+                                uniquename = record.uniquename()
+                            lexer_file = check.db().lookup_uniquename(uniquename)
+                    declare = get_function(lexer_file, declarein.line(), declarein.column(), check.db())
+
+        if not re.search(r"noexcept", str(declare.strip())):    
+            break
+            
+        start = re.search(r"noexcept", str(declare.strip())).start()
+        l_operand = declare.strip()[start:]
+
+        definein = get_function(file, ref.line(), ref.column(), check.db())
+
+        if not re.search(r"noexcept", str(definein.strip())):
+            break
+
+        start = re.search(r"noexcept", str(definein.strip())).start()
+        define = definein.replace("override","")
+        r_operand = define.strip()[start:]
+
+        if get_mapping(l_operand) == 1 and get_mapping(r_operand) == 2:
+            check.violation(ref.ent(), file, ref.line(), ref.column(), DEF_NAME)

@@ -1,0 +1,121 @@
+# This script is designed to run with Understand - CodeCheck
+# Rewritten by Robby Bennett
+# 12-21-21
+
+
+import re
+
+
+ERR1 = '"U" or "u" suffix not applied to integer constant %1'
+
+
+def ids():
+    return ('MISRA08_2-13-3', 'M2-13-3', 'CPP_E029')
+
+
+def name(id):
+    return {
+        'MISRA08_2-13-3': 'Published Standards/MISRA-C++ 2008/2-13-3 A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type.',
+        'M2-13-3': 'Published Standards/AUTOSAR/A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type.',
+        'CPP_E029': 'All Checks/Language Specific/C and C++/Expressions/A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type.',
+    }[id]
+
+
+def description():
+    return 'A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type.'
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b><br>
+The type of an integer is dependent on a complex combination of factors including:<br>
+• The magnitude of the constant;<br>
+• The implemented sizes of the integer types;<br>
+• The presence of any suffixes;<br>
+• The number base in which the value is expressed (i.e. decimal, octal or hexadecimal).
+</p>
+
+<p>
+For example, the value 0x8000 is of type <i>unsigned int</i> in a 16-bit environment, but of type (<i>signed</i>)
+<i>int</i> in a 32-bit environment. If an overload set includes candidates for an <i>unsigned int</i> and an <i>int</i>,
+then the overload that would be matched by 0x8000 is therefore dependent on the implemented
+integer size. Adding a "U" suffix to the value specifies that it is unsigned.
+</p>
+
+<p>
+Note that the usage context may also require the use of suffixes, as shown in Section 6.5.0.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+  template <typename T>
+  void f ( T );
+  template <>
+  void f < unsigned int > ( unsigned int );
+  template <>
+  void f < int > ( int );
+  void b ( )
+  {
+    unsigned int u16a = 0U; // Compliant
+    f ( 0x8000 ); // Non-compliant on a 16-bit platform.
+    u16a = u16a + 0x8000; // Non-compliant as context is unsigned.
+  }
+</pre>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def define_options(check):
+    check.option().integer('int', 'Integer size in bits', 16)
+
+
+def check(check, file):
+
+    intSize = 2 ** check.option().lookup('int')
+    twoToTheFifteen = 2 ** 15
+
+    lexer = file.lexer(False)
+    if not lexer:
+        return
+
+    octalOrHexadecimal = re.compile('(^0[0-7]+$)|(^0x[0-9a-fA-F]+$)')
+
+    for lexeme in lexer.lexemes():
+
+        ok = False
+
+        # Must be a literal octal or hexadecimal
+        if lexeme.token() != 'Literal':
+            continue
+        if not re.match(octalOrHexadecimal, lexeme.text()):
+            continue
+
+        # Convert string to a number
+        base = 8
+        if lexeme.text()[1] == 'x':
+            base = 16
+        val = int(lexeme.text(), base)
+
+        if base == 8:
+
+            if val < intSize / 2:
+                ok = True
+
+        else:
+
+            if val < intSize / 2 or val < twoToTheFifteen:
+                ok = True
+
+        if not ok:
+            check.violation(None, file, lexeme.line_begin(), lexeme.column_begin(), ERR1, lexeme.text())

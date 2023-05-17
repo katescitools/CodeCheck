@@ -1,0 +1,71 @@
+import re
+
+not_allowed = ["rand","random_shuffle"]
+CHECK_DESC = "Pseudorandom numbers shall not be generated using std::rand()"
+
+# The ID for the check
+def id():
+    return 'A26-5-1'
+
+# The short name of the check
+def name():
+    return "Published Standards\\AUTOSAR\\Pseudorandom numbers shall not be generated using std::rand()"
+
+
+# The short description of the check
+def description():
+    return CHECK_DESC
+
+# The long description of the check
+def detailed_description():
+    return """\
+<p><b>Rationale</b></p>
+<p>Using a pseudo-random sequence of numbers requires that it is generated with good statistical properties. Some implementations of std::rand() function have a comparatively short cycle, as a result the numbers can be predictable. Using functionalities from <random> is recommended instead of using std::rand().</p>
+<p>Note: std::random_shuffle should not be used, as it is deprecated since C++14 (see A1-1-1) and one of the available overloads is often implemented in terms of std::rand.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+1 // $Id: A26-5-1.cpp 311495 2018-03-13 13:02:54Z michal.szczepankiewicz $
+2
+3 #include <cstdlib>
+4 #include <cstdint>
+5 #include <ctime>
+6 #include <iostream>
+7 #include <random>
+8
+9 int main()
+10 {
+11 std::srand(std::time(nullptr));
+12 int r1 = std::rand() % 100; //non-compliant
+13 std::cout << "Random value using std::rand(): " << r1 << std::endl;
+14
+15 std::random_device rd;
+16 std::default_random_engine eng{rd()};
+17 std::uniform_int_distribution<int> ud{0, 100};
+18 int r2 = ud(eng); //compliant
+19 std::cout << "Random value using std::random_device: " << r2 << std::endl;
+20
+21 return 0;
+22 }
+</pre>
+<p><b>See also</b></p>
+<p>SEI CERT C++ Coding Standard [10]: MSC50-CPP: Do not use std::rand() for generating pseudorandom numbers.
+</p>"""
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('header file,code file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for 
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    for ref in file.filerefs("Call","Function", True):
+        if ref.ent().name() in not_allowed:
+            for inner in ref.ent().refs("C Callby"):
+                check.violation(None, file, inner.line(), inner.column(), CHECK_DESC)

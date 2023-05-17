@@ -1,0 +1,77 @@
+import re
+
+# The ID for the check
+def ids():
+    return ('M2-13-4', 'MISRA08_2-13-4', 'CPP_D018')
+
+# The short name of the check
+def name(id):
+    return {
+        'M2-13-4': 'Published Standards/AUTOSAR/Literal suffixes shall be upper case',
+        'MISRA08_2-13-4': 'Published Standards/MISRA-C++ 2008/2-13-4 Literal suffixes shall be upper case',
+        'CPP_D018': 'All Checks/Language Specific/C and C++/Declarations and Definitions/Literal suffixes shall be upper case',
+    }[id]
+
+# The short description of the check
+def description():
+    return 'Literal suffixes shall be upper case.'
+
+# The long description of the check
+def detailed_description():
+    return '''
+
+<p><b>Rationale</b><br>
+Using upper case literal suffixes removes the potential ambiguity between "1" (digit 1) and "l"
+(letter el) for declaring literals.
+</p><br>
+
+<b>Example</b><pre style="margin-top:0;padding-top:0;">
+  const unsigned int a = 0U; 
+  const unsigned int b = 0u;       // Non-compliant
+  const long int c = 0L;
+  const long int d = 0l;           // Non-compliant
+  const unsigned long int e = 0UL;
+  const unsigned long int f = 0Ul; // Non-compliant
+  const unsigned int g = 0x12bU;
+  const unsigned int h = 0x12bu;   // Non-compliant
+  const float m = 1.2F;
+  const float n = 2.4f;            // Non-compliant
+  const double o = 1.2L;
+  const double p = 2.4l;           // Non-compliant
+  const double q = o;
+  const double r = p;
+</pre>
+
+<p><b>See also</b><br>
+ISO/IEC 14882:2003 [1] §2.13</p>
+<br>
+
+'''
+
+# Tests the type of file
+def test_entity(file):
+    return file.kind().check('code file,header file')
+
+# Optional - Return True if this check should be run on the entire project
+# regardless of what files are selected. Should only be used for 
+# project-level checks
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+
+    suffix = ["U","L","LU","LL","LLU","F"]
+
+    for lexeme in file.lexer():
+        if lexeme.token() == "Literal":
+            value = lexeme.text()
+            for pattern in suffix:
+                if (value.upper().count(pattern) > 0) :
+                    temp_value = value
+                    param = -1 * len(pattern)
+                    if temp_value[param].upper() == pattern.upper() :
+                        if temp_value[param].islower() and not re.findall("0x",temp_value):
+                            check.violation(file, file, lexeme.line_end(), -1, "Lowercase on literal suffix is not allowed. Line : " + str(lexeme.line_end()))

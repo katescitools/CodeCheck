@@ -1,0 +1,95 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+
+import re
+
+ERR1 = 'String literals with different encoding prefixes concatenated'
+
+def ids():
+    return ('A2-13-2', 'CPP_E030')
+
+def name(id):
+    return {
+        'A2-13-2': 'Published Standards/AUTOSAR/String literals with different encoding prefixes shall not be concatenated',
+        'CPP_E030': 'All Checks/Language Specific/C and C++/Expressions/String literals with different encoding prefixes shall not be concatenated',
+    }[id]
+
+def description():
+    return 'String literals with different encoding prefixes shall not be concatenated.'
+
+def detailed_description():
+    return '''\
+<p><b>Rationale</b></p>
+<p>Concatenation of wide and narrow string literals leads to undefined behavior.</p>
+<p>"In translation phase 6 (2.2), adjacent string-literals are concatenated. If both string-
+literals have the same encoding-prefix, the resulting concatenated string literal has
+that encoding-prefix. If one string-literal has no encoding-prefix, it is treated as a
+string-literal of the same encoding-prefix as the other operand. If a UTF-8 string
+literal token is adjacent to a wide string literal token, the program is ill-formed.
+Any other concatenations are conditionally-supported with implementation-defined
+behavior. [ Note: This concatenation is an interpretation, not a conversion. Because
+the interpretation happens in translation phase 6 (after each character from a literal has
+been translated into a value from the appropriate character set), a string-literal's initial
+rawness has no effect on the interpretation or well-formedness of the concatenation.
+-end note ]" [C++14 Language Standard] [3]</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+//% $Id: A2-13-2.cpp 305629 2018-01-29 13:29:25Z piotr.serwa $
+
+char16_t nArray[] =
+u"Hello"
+u"World"; // Compliant, "u" stands for char16_t type
+
+char32_t nArray2[] =
+U"Hello"
+U"World"; // Compliant, "U" stands for char32_t type
+
+wchar_t wArray[] =
+L"Hello"
+L"World"; // Compliant, "L" stands for wchar_t type - violates A2-13-3
+// rule.
+
+wchar_t mixed1[] =
+"Hello"
+L"World"; // Compliant
+
+char32_t mixed2[] =
+"Hello"
+U"World"; // Compliant
+
+char16_t mixed3[] =
+"Hello"
+u"World"; // Compliant
+
+// wchar_t mixed1[] = u"Hello" L"World"; // Non-compliant - compilation error
+
+// char32_t mixed2[] = u"Hello" U"World"; // Non-compliant - compilation error
+</pre>
+<p><b>See also</b></p>
+<p>• MISRA C++ 2008 [7]: required 2-13-5 Narrow and wide string literals shall not be
+concatenated.</p>
+<p>• HIC++ v4.0 [9]: 2.5.1 Do not concatenate strings with different encoding prefixes</p>
+'''
+
+def test_entity(file):
+    return file.kind().check('header file, code file')
+
+def test_global():
+    return False
+
+def test_language(language):
+    return language == 'C++'
+
+def check(check, file):
+    current = None
+    prefix = re.compile('(L|u8|u|U)".*"')
+
+    for lexeme in file.lexer().lexemes():
+        token = lexeme.token()
+        if token not in {'Whitespace', 'Comment', 'Newline'}:
+            previous = current
+            current = prefix.match(lexeme.text())
+            if current:
+                current = current.group(1)
+            if previous and current and previous != current:
+                check.violation(lexeme.ent(), file, lexeme.line_begin(), lexeme.column_begin(), ERR1)

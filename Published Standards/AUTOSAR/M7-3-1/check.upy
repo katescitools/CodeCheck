@@ -1,0 +1,98 @@
+# This script is designed to run with Understand - CodeCheck
+# 8-16-21
+
+
+import re
+
+
+ERR1 = 'Global namespace shall only contain main, namespace and extern "C" declarations'
+
+
+TYPE_EXCEPTIONS = {'char', 'signed char', 'unsigned char', 'short', 'short int', 'signed short', 'signed short int', 'unsigned short', 'unsigned short int', 'int', 'signed', 'signed int', 'unsigned', 'unsigned int', 'long', 'long int', 'signed long', 'signed long int', 'unsigned long', 'unsigned long int', 'long long', 'long long int', 'signed long long', 'signed long long int', 'unsigned long long', 'unsigned long long int', 'float', 'double', 'long double'}
+TYPEDEF_EXCEPTIONS = {'char_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'float32_t', 'float64_t', 'float128_t'}
+
+
+def ids():
+    return ('M7-3-1', 'MISRA08_7-3-1', 'CPP_I004')
+
+
+def name(id):
+    return {
+        'M7-3-1': 'Published Standards/AUTOSAR/The global namespace shall only contain main, namespace declarations and extern "C" declarations',
+        'MISRA08_7-3-1': 'Published Standards/MISRA-C++ 2008/7-3-1 The global namespace shall only contain main, namespace declarations and extern "C" declarations',
+        'CPP_I004': 'All Checks/Language Specific/C and C++/Identifiers/The global namespace shall only contain main, namespace declarations and extern "C" declarations',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>
+Declaring names into appropriate namespaces reduces the names found during lookup, helping to ensure that the names found meet developer expectations.
+</p>
+
+<p><b>Exception</b></p>
+
+<p>The types defined for compliance with Rule 3-9-2 may also be in the global namespace.</p>
+
+<p><b>Example</b></p>
+
+<pre>
+void f1 ( int32_t );     // Non-compliant
+int32_t x1;              // Non-compliant
+namespace
+{
+    void f2 ( int32_t ); // Compliant
+    int32_t x2;          // Compliant
+}
+namespace MY_API
+{
+    void b2 ( int32_t ); // Compliant
+    int32_t x2;          // Compliant
+}
+int32_t main ( )         // Compliant
+{
+}
+</pre>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def typedefForBasicNumericType(ent):
+    if ent.kind().check('Typedef'): # Typedef
+        if ent.type() in TYPE_EXCEPTIONS: # Number or char
+            if ent.name() in TYPEDEF_EXCEPTIONS: # Specific size
+                return True
+    return False
+
+
+def check(check, file):
+    for ref in file.filerefs('Declare, Define', '~Namespace ~Parameter ~Member ~Class ~Macro'):
+        ent = ref.ent()
+
+        # Exception Rule 3-9-2
+        if typedefForBasicNumericType(ent):
+            continue
+        # Ignore extern "C"
+        if ent.freetext('Linkage') == 'C':
+            continue
+        # Ignore main function
+        if ent.name() == 'main':
+            continue
+        # Ignore when not in global scope
+        if ent.parent() and ent.parent().name() != file.name():
+            continue
+
+        check.violation(ent, file, ref.line(), ref.column(), ERR1)

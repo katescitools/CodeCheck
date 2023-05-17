@@ -1,0 +1,16 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_I000",
+            "options": {
+                "Global": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "aspen_config1",
+    "parents": [
+    ]
+}

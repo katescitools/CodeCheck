@@ -1,0 +1,18 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_N002",
+            "options": {
+                "EnumRun": false,
+                "PublicRun": true,
+                "PublicconsCaps": "Not Allowed"
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Kind - Public",
+    "parents": [
+    ]
+}

@@ -1,0 +1,48 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 4-07-2022
+import re
+
+ERR1 = 'Class or Interface did not start with a capital letter'
+
+def ids():
+    return ('JAVA_14')
+
+def name(id):
+    return {
+        'JAVA_14': '''All Checks/Language Specific/Java/\
+Capitalize classes and interfaces
+        ''',
+    }[id]
+
+# The long description of the check
+def detailed_description():
+    return """
+<p>The first letter of each word in the name of a class or an interface shall be
+capitalized.</p>
+
+<b>Example</b>
+<pre>public class CompliantExample() {
+
+}
+interface nonCompliantExample() {
+
+}</pre>
+<p><b>Developer's Note</b></p>
+<p>This check only is able to check if the first letter of the interface or
+class name.</p>
+"""
+
+def test_entity(file):
+    return file.kind().check('file')
+
+def test_language(language):
+    return language == 'Java'
+
+
+def check(check, file):
+    refs = file.filerefs('Define', 'Java Class, Java Interface ~unnamed ~unresolved ~unknown')
+
+    for ref in refs:
+        if not re.match('[A-Z]', ref.ent().name()):
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)

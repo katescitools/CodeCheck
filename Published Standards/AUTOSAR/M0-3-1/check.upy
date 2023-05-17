@@ -1,0 +1,125 @@
+# This script is designed to run with Understand - CodeCheck
+
+import re
+
+
+def ids():
+	return ('M0-3-1', 'MISRA08_0-3-1', 'CPP_E026')
+
+
+def name(id):
+	return {
+		'M0-3-1': 'Published Standards/AUTOSAR/Minimization of run-time failures shall be ensured by the use of static analysis tools',
+		'MISRA08_0-3-1': 'Published Standards/MISRA-C++ 2008/0-3-1 Minimization of run-time failures shall be ensured by the use of static analysis tools',
+		'CPP_E026': 'All Checks/Language Specific/C and C++/Exception Handling/Minimization of run-time failures shall be ensured by the use of static analysis tools',
+	}[id]
+
+
+def description():
+	return 'Minimization of run-time failures shall be ensured by the use of at least one of: (a) static analysis tools/techniques; (b) dynamic analysis tools/techniques; (c) explicit coding of checks to handle run-time faults.'
+
+
+def detailed_description():
+	return '''\
+<p><b>Rule</b><br>
+Minimization of run-time failures shall be ensured by the use of at least one of:<br>
+&nbsp;&nbsp;(a) static analysis tools/techniques;<br> 
+&nbsp;&nbsp;(b) dynamic analysis tools/techniques;<br>
+&nbsp;&nbsp;(c) explicit coding of checks to handle run-time faults.</p>
+
+<p><b>Rationale</b><br>
+Run-time checking is an issue (not specific to C++) to which developers need to pay special 
+attention, especially as the C++ language is weak in its provision of any run-time checking. C++ 
+implementations are not required to perform many of the dynamic checks that are necessary for 
+robust software. It is therefore an issue that C++ developers need to consider carefully, adding 
+dynamic checks to code wherever there is the potential for run-time errors to occur.</p>
+
+<p>Where expressions consist only of values within a well-defined range, a run-time check may 
+not be necessary, provided it can be demonstrated that for all values within the defined range 
+the exception cannot occur. Such a demonstration, if used, should be documented along with 
+the assumptions on which it depends. However, if adopting this approach, be very careful about 
+subsequent modifications of the code that may invalidate the assumptions, or of the assumptions 
+changing for any other reason.</p>
+
+<p>The following notes give some guidance on areas where consideration needs to be given to the 
+provision of dynamic checks.</p>
+
+<p><b>Arithmetic Errors</b><br>
+This includes errors occurring in the evaluation of expressions, such as overflow, underflow, 
+division by zero or loss of significant bits through shifting.
+In considering integer overflow, note that unsigned integer calculations do not strictly 
+overflow (producing undefined values), but the values wrap around (producing defined, but 
+possibly unexpected, values).</p>
+
+<p><b>Pointer Arithmetic</b><br>
+Ensure that when an address is calculated dynamically the computed address is reasonable 
+and points somewhere meaningful. In particular it should be ensured that if a pointer points 
+within a structure or array, then when the pointer has been incremented or otherwise altered 
+it still points to the same structure or array. See Rule 5-0-15, Rule 5-0-16, Rule 5-0-17 
+and Rule 5-0-18 for restrictions on pointer arithmetic.</p>
+
+<p><b>Array Bound Errors</b><br>
+Ensure that array indices are within the bounds of the array size before using them to index 
+the array.</p>
+
+<p><b>Function Arguments</b><br>
+Function arguments should be validated.</p>
+
+<p><b>Pointer Dereferencing</b><br>
+Where a function returns a pointer and that pointer is subsequently de-referenced the 
+program should first check that the pointer is not NULL. Within a function, it is relatively 
+straightforward to reason about which pointers may or may not hold NULL values. Across 
+function boundaries, especially when calling functions defined in other source files or 
+libraries, it is much more difficult.</p>
+
+<pre style="margin-top:0;padding-top:0;">
+// Given a pointer to a message, check the message header and return
+// a pointer to the body of the message or NULL if the message is
+// invalid.
+const char_t *msg_body ( const char_t * msg )
+{
+const char_t * body = NULL;
+  if ( msg != NULL )
+  {
+    if ( msg_header_valid ( msg ) )
+    {
+      body = &msg [ MSG_HEADER_SIZE ];
+    }
+  }
+  return ( body );
+}
+...
+char_t msg_buffer [ MAX_MSG_SIZE ];
+const char_t * payload;
+...
+payload = msg_body ( msg_buffer );
+if ( payload != NULL )
+{
+  // process the message payload
+}
+</pre>
+
+<p>The techniques that will be employed to minimize run-time failures should be planned and 
+documented, e.g. in design standards, test plans, static analysis configuration files, code review 
+checklists.</p>
+
+'''
+
+
+def test_language(language):
+	return language == 'C++'
+
+
+def test_entity(file):
+	return False
+
+
+def test_global():
+	return True
+
+def noop_always():
+    return True
+
+def check(check, file):
+	pass
+	# Never returns error, the act of running the test indicates you are using a static analysis tool and pass the test

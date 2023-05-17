@@ -1,0 +1,133 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 12-5-22
+
+
+import re
+
+
+DEF_NAME = 'The memory allocation and deallocation functions of &lt;stdlib.h&gt; shall not be used'
+ERR1 = 'Memory allocation function of stdlib used'
+ERR2 = 'Memory deallocation function of stdlib used'
+
+
+def ids():
+    return ('MISRA12_21.3')
+
+
+def name(id):
+    return {
+        'MISRA12_21.3': f'Published Standards/MISRA C 2012/21.3 {DEF_NAME}',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Amplification</b></p>
+The identifiers <i>calloc</i>, <i>malloc</i>, <i>realloc</i> and <i>free</i>
+shall not be used and no macro with one of these names shall be expanded.
+</p>
+
+<p><b>Rationale</b></p>
+Use of dynamic memory allocation and deallocation routines provided by The
+Standard Library can lead to undefined behaviour, for example:
+</p>
+
+<p>
+<ul>
+<li>
+Memory that was not dynamically allocated is subsequently freed;
+</li>
+<li>
+A pointer to freed memory is used in any way;
+</li>
+<li>
+Accessing allocated memory before storing a value into it.
+</li>
+</ul>
+</p>
+
+<p>
+Note: this rule is a specific instance of Dir 4.12.
+</p>
+
+<p><b>See also</b></p>
+Dir 4.12, Rule 18.7, Rule 22.1, Rule 22.2
+</p>
+'''
+
+
+def report_info(id):
+    return {
+        'MISRA12_21.3': {
+            'Category': 'Required',
+        },
+    }[id]
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def define_options(check):
+    check.options().checkbox('oneViolation', 'Limit one violation per file?', True)
+
+
+def fileIncludesStdlib(file):
+    # Base case: already visited
+    if file in visited:
+        # Base case: Check cache
+        if file in includesStdlib:
+            return includesStdlib[file]
+        # Base case: prevent circular recursion
+        return False
+    visited.add(file)
+
+    # Base case: directly included
+    for included in file.ents('Include'):
+        if included.name() in {'stdlib.h', 'cstdlib'}:
+            includesStdlib[file] = True
+            return True
+
+    # Recursion: indirectly included
+    for included in file.ents('Include'):
+        if fileIncludesStdlib(included):
+            includesStdlib[file] = True
+            return True
+
+    # Not included
+    includesStdlib[file] = False
+    return False
+
+
+def check(check, file):
+    global alloc, visited, includesStdlib, oneViolation
+    if 'alloc' not in globals():
+        alloc = {'calloc', 'malloc', 'realloc'}
+        visited = set()
+        includesStdlib = dict()
+        oneViolation = check.options().lookup('oneViolation')
+
+    # Skip if stdlib isn't included
+    if not fileIncludesStdlib(file):
+        return
+
+    # Violation for each stdlib allocate/deallocate call
+    for ref in file.filerefs('Call', 'Function'):
+        ent = ref.ent()
+        if ent.name() in alloc:
+            check.violation(ent, file, ref.line(), ref.column(), ERR1)
+            if oneViolation:
+                break
+        elif ent.name() == 'free':
+            check.violation(ent, file, ref.line(), ref.column(), ERR2)
+            if oneViolation:
+                break

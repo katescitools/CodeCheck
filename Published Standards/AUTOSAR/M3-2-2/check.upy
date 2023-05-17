@@ -1,0 +1,135 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Robby Bennett
+# 12-1-21
+
+
+import re
+
+
+ERR1 = 'Already defined differently in %1'
+
+
+def ids():
+    return ('M3-2-2', 'MISRA08_3-2-2', 'CPP_D041')
+
+
+def name(id):
+    return {
+        'M3-2-2': 'Published Standards/AUTOSAR/The One Definition Rule shall not be violated',
+        'MISRA08_3-2-2': 'Published Standards/MISRA-C++ 2008/3-2-2 The One Definition Rule shall not be violated',
+        'CPP_D041': 'All Checks/Language Specific/C and C++/Declarations and Definitions/The One Definition Rule shall not be violated',
+    }[id]
+
+
+def description():
+    return 'The One Definition Rule shall not be violated.'
+
+
+def detailed_description():
+    return '''\
+
+<p><b>Rationale</b><br>
+Violation of the <i>One Definition Rule</i> ([1] §3.2) leads to <i>undefined behaviour</i>. In general, this means
+that the program shall contain exactly one definition of every non-inline function or object.
+</p>
+
+<p>
+Additionally:<br>
+• The definitions of a type shall consist of the same sequence of tokens, and;<br>
+• The definitions of a template shall consist of the same sequence of tokens, and;<br>
+• The definitions of an inline function shall consist of the same sequence of tokens.
+</p>
+
+<p>
+Note that for the purposes of this rule, <i>typedefs</i> shall be treated as types.
+</p>
+
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+// File a.cpp
+struct S1
+{
+  int32_t i;
+};
+struct S2
+{
+  int32_t i;
+};
+// File b.cpp
+struct S1
+{
+  int64_t i;
+}; // Non-compliant - token sequence different
+struct S2
+{
+  int32_t i;
+  int32_t j;
+}; // Non-compliant - token sequence different
+</pre>
+
+'''
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def test_entity(file):
+    return True
+
+
+def test_global():
+    return False
+
+
+def locationString(file, ref):
+    return file.name() + ': Line ' + str(ref.line())
+
+
+defined = {}
+
+
+def check(check, file):
+    lexer = None
+
+    # Definitions of types, templates, and inline functions
+    for ref in file.filerefs('Define', '~Unnamed ~TemplateParameter Type, ~Unnamed Function'):
+        ent = ref.ent()
+
+        # Ignore macros
+        if not lexer:
+            lexer = file.lexer()
+        lexeme = lexer.lexeme(ref.line(), ref.column())
+        if lexeme.text() != ent.name():
+            continue
+
+        # Ignore non-inline functions
+        if 'Function' in ent.kindname() and not ent.freetext('inline'):
+            continue
+
+        # First definition of this identifier
+        if ent.longname() not in defined:
+            defined[ent.longname()] = (locationString(file, ref), ent)
+
+        # Already defined
+        else:
+            definedLocation = defined[ent.longname()][0]
+            definedEnt = defined[ent.longname()][1]
+
+            # Ignore same location
+            if locationString(file, ref) == definedLocation:
+                continue
+
+            # Ignore different kinds
+            if ent.kindname() != definedEnt.kindname():
+                continue
+            
+            # Ignore different parameters (to allow parametric polymorphism)
+            if ent.parameters() != definedEnt.parameters():
+                continue
+
+            # Ignore same token sequence
+            if ent.contents() and ent.contents() == definedEnt.contents():
+                continue
+
+            check.violation(ent, file, ref.line(), ref.column(), ERR1, defined[ent.longname()][0])

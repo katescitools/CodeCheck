@@ -1,0 +1,166 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 2-22-2022
+import re
+
+ERR1 = 'Explicit type casting to signed or unsigned was not used'
+
+def ids():
+    return ('CPP_T056')
+
+def name(id):
+    return {
+        'CPP_T056': '''All Checks/Language Specific/C and C++/Types/\
+Explicit type casting shall be used with a mix of signed and unsigned values.'''
+    }[id]
+
+def detailed_description(id):
+    return {
+        'CPP_T056': '''\
+<p>Explicit type casting shall be used when
+performing calculations that use a mix of signed
+and unsigned values.</p>
+<p><b>Example</b></p>
+<pre>
+unsigned int u_int;
+int s_int;
+
+unsigned int j = (unsigned int)s_int + u_int; // Compliant
+
+unsigned int k = s_int + u_int; // Non-compliant
+</pre>
+'''
+    }[id]
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    refs = file.filerefs('Set', 'Object')
+    lexer = None
+
+    for ref in refs:
+        entType = ref.ent().type()
+
+        if not lexer:
+            lexer = file.lexer()
+
+        lexeme = lexer.lexeme(ref.line(), ref.column())
+        nextLex = lexeme
+        operator = False
+        signed = False
+        unsigned = False
+        cast = False
+        ok = True
+        # Skip to equals sign
+        while lexeme and not re.search('=|;', lexeme.text()):
+            lexeme = lexeme.next(True, True)
+
+        # Skip if equals sign was not found
+        if not lexeme or lexeme.text() == ';':
+            continue
+        # Go through the line to the semi-colon
+        while lexeme and not lexeme.text() == ';':
+            # Check if object type is unsigned
+            if lexeme.ent() and lexeme.ent().type() and re.search('unsigned', lexeme.ent().type().lower()):
+                unsigned = True
+                # Check for a cast to unsigned
+                if not re.search('unsigned', entType):
+                    cast = checkForCast(lexeme, entType, file)
+                    if cast == None:
+                        break
+
+            elif lexeme.ent() and lexeme.ent().type() and not re.search('unsigned', lexeme.ent().type().lower()):
+                signed = True
+                # Check for a cast to signed
+                if re.search('unsigned', entType):
+                    cast = checkForCast(lexeme, entType, file)
+                    if cast == None:
+                        break
+
+            # Check for operator
+            elif lexeme.token() == 'Operator' and lexeme.text() != '=':
+                operator = True
+
+
+            lexeme = lexeme.next(True, True)
+
+
+
+        # Throw violation if these conditions are met
+        if cast == False and signed and unsigned and operator:
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)
+
+
+
+
+
+# Find corresponding open parenthesis
+def findOpen(lexeme):
+    count = 0
+
+    while lexeme and not (lexeme.text() == '(' and count == 0):
+        if lexeme.text() == ')':
+            count += 1
+
+        lexeme = lexeme.previous(True, True)
+
+        if lexeme.text() == '(':
+            count -= 1
+
+    return lexeme
+
+def checkForCast(lexeme, entType, file):
+    entType = entType.lower()
+
+    # Look for cast to unsigned
+    if re.search('unsigned', entType):
+        prevLex = lexeme.previous(True, True)
+        if file.name() == 'test3.cpp' and prevLex.line_begin() == 7:
+            print(prevLex.text(), prevLex.column_begin(), entType)
+        if prevLex and prevLex.text() == ')':
+            open = findOpen(prevLex)
+            if not open:
+                return None
+            cast = True
+            prevLex = prevLex.previous(True, True)
+            while prevLex and not (prevLex.line_begin() == open.line_begin() and prevLex.column_begin() == open.column_begin()):
+                if not re.search(re.escape(prevLex.text().lower()), entType):
+                    cast = False
+                prevLex = prevLex.previous(True, True)
+
+            if not cast:
+                return False
+
+        else:
+            return False
+
+
+    # Look for cast to signed
+    else:
+        prevLex = lexeme.previous(True, True)
+        if prevLex and prevLex.text() == ')':
+            open = findOpen(prevLex)
+            if not open:
+                return None
+            cast = True
+            prevLex = prevLex.previous(True, True)
+            partialCast = True
+            while prevLex and not (prevLex.line_begin() == open.line_begin() and prevLex.column_begin() == open.column_begin()):
+                if not re.search(re.escape(prevLex.text().lower()), entType):
+                    cast = False
+                prevLex = prevLex.previous(True, True)
+
+            if not cast:
+                return False
+
+        else:
+            return False
+
+    return True
+
+

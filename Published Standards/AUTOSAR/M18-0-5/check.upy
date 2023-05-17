@@ -1,0 +1,87 @@
+import re
+
+ERR1 = 'Unbounded functions of library <cstring> shall not be used'
+
+UNBOUNDED_FUNCTIONS_LIST = {"strcpy", "strcmp", "strcat", "strchr",
+                            "strspn", "strcspn", "strpbrk", "strrchr", "strstr", "strtok", "strlen"}
+UNBOUNDED_FUNCTIONS_STR = "strcpy|strcmp|strcat|strchr|strspn|strcspn|strpbrk|strrchr|strstr|strtok|strlen"
+
+# The ID for the check
+
+
+def ids():
+    return ('M18-0-5', 'CPP_L006', 'MISRA08_18-0-5')
+
+# The short name of the check
+
+
+def name(id):
+    return {
+        'M18-0-5': """\
+Published Standards/AUTOSAR/Unbounded Functions of &lt;cstring&gt;""",
+        'CPP_L006': """\
+All Checks/Language Specific/C and C++/Libraries/Unbounded Functions of &lt;cstring&gt;""",
+        'MISRA08_18-0-5': """\
+Published Standards/MISRA-C++ 2008/Unbounded Functions of &lt;cstring&gt;"""
+    }[id]
+
+
+# The short description of the check
+
+
+def description():
+    return 'The unbounded functions of library &lt;cstring&gt; shall not be used.'
+
+# The long description of the check
+
+
+def detailed_description():
+    return """
+<p><b>Rationale</b></p>
+<p>The <i>strcpy</i>, <i>strcmp</i>, <i>strcat</i>, <i>strchr</i>, <i>strspn</i>, <i>strcspn</i>, <i>strpbrk</i>, <i>strrchr</i>, <i>strstr</i>, <i>strtok</i> and <i>strlen</i> functions
+within the <i>&lt;cstring&gt;</i> library can read or write beyond the end of a buffer, resulting in undefined
+behaviour.</p>
+<p>Ideally, a safe string handling library should be used.</p>
+<p>See MISRA C++ 2008 [7]</p>
+<p>Note: The intention of this rule is to prohibit the functions from <cstring> which have
+a char* or char const* parameter, but no additional size_t parameter placing a
+bound on the underlying loop. Other functions from <cstring> taking a char* or
+char const* parameter fall under the restrictions of rule A27-0-4. Use of memchr,
+memcmp, memset, memcpy, and memmove is still allowed by this rule, but limited by rule
+A12-0-2.</p>
+<p><b>Example</b></p>
+<pre style="margin-top:0;padding-top:0;">
+#include <cstring>
+void fn ( const char_t * pChar )
+{
+ char_t array [ 10 ];
+ strcpy ( array, pChar ); // Non-compliant
+}
+</pre>
+<p><b>See also</b></p>
+<p>• Rule A12-0-2 in section 6.12.0</p>
+<p>• Rule A27-0-4 in section 6.27.1</p>
+"""
+
+# Tests the type of file
+
+
+def test_entity(file):
+    return file.kind().check('code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    if not re.search(UNBOUNDED_FUNCTIONS_STR, file.contents()):
+        return
+
+    for ref in file.filerefs("Call", "~Virtual Function"):
+        if ref.ent().longname() in UNBOUNDED_FUNCTIONS_LIST:
+            check.violation(ref.ent(), file, ref.line(), ref.column(), ERR1)

@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_C031",
+            "options": {
+                "ignoreEnums": false
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Ignore Enums",
+    "parents": [
+    ]
+}
+

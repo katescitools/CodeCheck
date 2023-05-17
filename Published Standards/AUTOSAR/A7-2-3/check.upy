@@ -1,0 +1,114 @@
+# This script is designed to run with Understand - CodeCheck
+# 6-17-21
+
+
+import re
+
+
+ERR1 = 'Enumeration not declared as scoped enum class'
+
+
+def ids():
+    return ('A7-2-3', 'CPP_D050')
+
+
+def name(id):
+    return {
+        'A7-2-3': 'Published Standards/AUTOSAR/Enumerations shall be declared as scoped enum classes',
+        'CPP_D050': 'All Checks/Language Specific/C and C++/Declarations and Definitions/Enumerations shall be declared as scoped enum classes',
+    }[id]
+
+
+def detailed_description():
+    return '''
+<p><b>Rationale</b></p>
+
+<p>
+If unscoped enumeration enum is declared in a global scope, then its values can redeclare constants declared with the same identifier in the global scope. This may lead to developer's confusion.
+</p>
+
+<p>
+Using enum-class as enumeration encloses its enumerators in its inner scope and prevent redeclaring identifiers from outer scope.
+</p>
+
+<p>
+Note that enum class enumerators disallow implicit conversion to numeric values.
+</p>
+
+<p><b>Example</b></p>
+
+<pre>
+// $Id: A7-2-3.cpp 289436 2017-10-04 10:45:23Z michal.szczepankiewicz $
+#include &lt;cstdint&gt;
+
+enum E1 : std::int32_t // Non-compliant
+{
+    E10,
+    E11,
+    E12
+};
+
+enum class E2 : std::int32_t // Compliant
+{
+    E20,
+    E21,
+    E22
+};
+
+// static std::int32_t E1_0 = 5; // E1_0 symbol redeclaration, compilation
+// error
+
+static std::int32_t e20 = 5; // No redeclarations, no compilation error
+
+extern void F1(std::int32_t number)
+{
+}
+
+void F2()
+{
+    F1(0);
+
+    F1(E11); // Implicit conversion from enum to std::int32_t type
+
+    // f1(E2::E2_1); // Implicit conversion not possible, compilation error
+
+    F1(static_cast&lt;std::int32_t&gt;(
+    E2::E21)); // Only explicit conversion allows to
+               // pass E2_1 value to f1() function
+}
+</pre>
+
+<p><b>See also</b></p>
+
+<p>
+• C++ Core Guidelines [11]: Enum.3: Prefer class enums over "plain" enums.
+</p>
+'''
+
+
+def test_entity(file):
+    return file.kind().check('code file')
+
+
+def test_global():
+    return False
+
+
+def test_language(language):
+    return language == 'C++'
+
+
+def check(check, file):
+    if not re.search("enum", file.contents()):
+        return
+
+    lexer = file.lexer()
+
+    if not lexer:
+        return
+
+    for ref in file.refs("Define", "Enum"):
+        for lex in lexer.lexemes(ref.line(), ref.line()):
+            if lex.text() == "enum" and lex.token() == "Keyword" and lex.next().next().text() != "class" and lex.next().next().token() != "Keyword":
+                check.violation(ref.ent(), file, ref.line(),
+                                ref.column(), ERR1)

@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "CPP_C029",
+            "options": {
+                "eachExit": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Each Exit",
+    "parents": [
+    ]
+}
+

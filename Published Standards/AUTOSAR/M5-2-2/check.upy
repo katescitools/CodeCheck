@@ -1,0 +1,42 @@
+# This script is designed to run with Understand - CodeCheck
+# Written by Jason Quinn
+# 11-03-2022
+def ids():
+    return ('M5-2-2', 'CPP_P059')
+
+def name(id):
+    return {
+        'M5-2-2': 'Published Standards/AUTOSAR/A pointer to a virtual base class shall only be cast to a pointer to a derived class by means of dynamic_cast',
+        'CPP_P059': 'All Checks/Language Specific/C and C++/Pointers/A pointer to a virtual base class shall only be cast to a pointer to a derived class by means of dynamic_cast',
+    }[id]
+
+def detailed_description():
+    return """\
+<p><b>This check is automatically run</b></p>
+<p>This check is always run during the strict analysis, any violations will be reported as analysis errors.</p>
+<p><b>Rationale</b></p>
+<p>Casting from a virtual base to a derived class, using any means other than
+dynamic_cast has undefined behaviour. The behaviour for dynamic_cast is
+defined.</p>
+<p><b>Example</b></p>
+<pre>
+class B { ... };
+class D: public virtual B { ... };
+D d;
+B *pB = &d;
+D *pD = static_cast<D*>(pB); // Non-compliant - undefined behaviour
+D *pD2 = dynamic_cast<D*>(pB); // Compliant, but pD2 may be NULL
+D & D3 = dynamic_cast<D&>(*pB); // Compliant, but may throw an exception</pre>
+"""
+
+def test_entity(file):
+    return file.kind().check('code file, header file')
+
+def test_language(language):
+    return language == 'C++'
+
+def noop_always():
+    return True
+
+def check(check, file):
+    pass

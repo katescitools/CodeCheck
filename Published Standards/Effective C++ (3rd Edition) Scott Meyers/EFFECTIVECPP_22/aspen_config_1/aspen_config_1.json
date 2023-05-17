@@ -1,0 +1,17 @@
+{
+    "automatic": false,
+    "checks": [
+        {
+            "id": "EFFECTIVECPP_22",
+            "options": {
+                "allowProtected": true
+            }
+        }
+    ],
+    "excludes": [
+    ],
+    "name": "Aspen",
+    "parents": [
+    ]
+}
+
